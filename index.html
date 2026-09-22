@@ -51,6 +51,7 @@ a{color:inherit}
 .tagline{margin:0;font-size:clamp(17px,1.6vw,21px);color:var(--chrome);max-width:34ch}
 .actions{display:flex;gap:12px;flex-wrap:wrap}
 .btn{display:inline-block;padding:15px 26px;border-radius:999px;font-weight:600;font-size:16px;text-decoration:none;border:1px solid var(--lav);transition:background .2s,color .2s}
+.btn[hidden]{display:none}
 .btn-main{background:var(--lav);color:#000}
 .btn-main:hover{background:var(--bone);border-color:var(--bone)}
 .btn-ghost{color:var(--bone)}
@@ -157,7 +158,8 @@ footer a:hover{color:var(--bone)}
     <form id="alert-form" novalidate>
       <label for="email" class="sr" style="position:absolute;left:-9999px">Email</label>
       <input id="email" type="email" placeholder="Your email" autocomplete="email" required>
-      <button class="btn btn-main" type="submit">Join the list</button>
+      <button class="btn btn-main" type="submit" id="alert-submit">Join the list</button>
+      <loader-button id="alert-syncing" label="Syncing" rings="5" hidden></loader-button>
     </form>
     <p class="note" id="note" role="status"></p>
   </section>
@@ -172,6 +174,109 @@ footer a:hover{color:var(--bone)}
 </footer>
 
 <script>
+// <loader-button> - "Contour Choir" syncing indicator: concentric organic
+// contour rings that pulse in a staggered, phase-reversed canon. Reskinned
+// to the brand's lavender/black palette via CSS custom properties.
+const LOADER_BUTTON_TEMPLATE = document.createElement("template");
+LOADER_BUTTON_TEMPLATE.innerHTML = `
+  <style>
+    :host {
+      display: inline-flex;
+      --lb-bg: var(--lav, #b88cf2);
+      --lb-border: var(--lav, #b88cf2);
+      --lb-fg: #000000;
+      --lb-accent: #000000;
+      --lb-radius: 999px;
+      --lb-size: 20px;
+      font-family: inherit;
+    }
+    :host([hidden]) { display: none; }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 15px 26px;
+      border-radius: var(--lb-radius);
+      border: 1px solid var(--lb-border);
+      background: var(--lb-bg);
+      cursor: default;
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--lb-fg);
+      line-height: 1;
+    }
+    .icon { width: var(--lb-size); height: var(--lb-size); display: block; overflow: visible; }
+    .ring {
+      fill: none;
+      stroke: var(--lb-accent);
+      stroke-width: 1.4;
+      transform-origin: center;
+      transform-box: fill-box;
+      animation: contour-pulse 2.4s ease-in-out infinite;
+    }
+    .ring:nth-child(1) { animation-delay: 0s;    animation-direction: normal; }
+    .ring:nth-child(2) { animation-delay: 0.22s; animation-direction: reverse; }
+    .ring:nth-child(3) { animation-delay: 0.44s; animation-direction: normal; }
+    .ring:nth-child(4) { animation-delay: 0.66s; animation-direction: reverse; }
+    .ring:nth-child(5) { animation-delay: 0.88s; animation-direction: normal; }
+    .ring:nth-child(6) { animation-delay: 1.10s; animation-direction: reverse; }
+    .ring:nth-child(7) { animation-delay: 1.32s; animation-direction: normal; }
+    @keyframes contour-pulse {
+      0%   { transform: scale(0.55); opacity: 0.15; }
+      50%  { transform: scale(1);    opacity: 0.9;  }
+      100% { transform: scale(0.55); opacity: 0.15; }
+    }
+    .label { white-space: nowrap; }
+    @media (prefers-reduced-motion: reduce) {
+      .ring { animation: none; opacity: 0.6; }
+    }
+  </style>
+  <span class="btn">
+    <svg class="icon" viewBox="0 0 32 32" aria-hidden="true"></svg>
+    <span class="label"></span>
+  </span>
+`;
+class LoaderButton extends HTMLElement {
+  static get observedAttributes() { return ["label", "rings"]; }
+  constructor() {
+    super();
+    const shadow = this.attachShadow({ mode: "open" });
+    shadow.appendChild(LOADER_BUTTON_TEMPLATE.content.cloneNode(true));
+    this._svg = shadow.querySelector(".icon");
+    this._label = shadow.querySelector(".label");
+  }
+  connectedCallback() { this._render(); }
+  attributeChangedCallback() { this._render(); }
+  _render() {
+    const label = this.getAttribute("label") ?? "Syncing";
+    const ringCount = Math.max(3, Math.min(7, parseInt(this.getAttribute("rings") ?? "5", 10)));
+    this._label.textContent = label;
+    this._svg.innerHTML = "";
+    const cx = 16, cy = 16, maxR = 13;
+    for (let i = 0; i < ringCount; i++) {
+      const r = maxR * ((i + 1) / ringCount);
+      const wobble = 1 + (i % 2 === 0 ? 0.06 : -0.06);
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("class", "ring");
+      path.setAttribute("d", this._contourPath(cx, cy, r, wobble));
+      this._svg.appendChild(path);
+    }
+  }
+  _contourPath(cx, cy, r, wobble) {
+    const points = 8;
+    let d = "";
+    for (let i = 0; i <= points; i++) {
+      const angle = (i / points) * Math.PI * 2;
+      const rr = r * (i % 2 === 0 ? wobble : 2 - wobble);
+      const x = cx + Math.cos(angle) * rr;
+      const y = cy + Math.sin(angle) * rr;
+      d += i === 0 ? `M ${x} ${y} ` : `L ${x} ${y} `;
+    }
+    return d + "Z";
+  }
+}
+customElements.define("loader-button", LoaderButton);
+
 // Hero video: skip the download/play on phones, sideways phones, and reduced motion,
 // and gate live so a resize or a mid-session motion-preference flip re-decides it.
 (function(){
@@ -252,9 +357,26 @@ document.getElementById('grid').innerHTML=PIECES.map(p=>`
 
 document.getElementById('alert-form').addEventListener('submit',e=>{
   e.preventDefault();
+  const form=e.currentTarget;
   const v=document.getElementById('email').value.trim();
   const n=document.getElementById('note');
-  n.textContent=/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)?"You're on the list.":"Enter a full email address, like name@email.com.";
+  const btn=document.getElementById('alert-submit');
+  const syncing=document.getElementById('alert-syncing');
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)){
+    n.textContent="Enter a full email address, like name@email.com.";
+    return;
+  }
+  btn.hidden=true;
+  btn.disabled=true;
+  syncing.hidden=false;
+  form.setAttribute('aria-busy','true');
+  setTimeout(()=>{
+    syncing.hidden=true;
+    btn.hidden=false;
+    btn.disabled=false;
+    form.removeAttribute('aria-busy');
+    n.textContent="You're on the list.";
+  },900);
 });
 </script>
 </body>
