@@ -90,10 +90,24 @@ a{color:inherit}
 .alerts input::placeholder{color:var(--muted)}
 .alerts .note{grid-column:1/-1;margin:0;color:var(--lav);min-height:1.5em}
 
-footer{display:flex;flex-wrap:wrap;justify-content:space-between;gap:16px;padding:32px clamp(18px,4vw,48px) calc(32px + env(safe-area-inset-bottom,0px));color:var(--muted);font-size:14px;border-top:1px solid #1d1b21}
-footer nav{display:flex;gap:24px}
-footer a{text-decoration:none}
-footer a:hover{color:var(--bone)}
+.site-footer{position:relative;overflow:hidden;border-top:1px solid #1d1b21;background:linear-gradient(to bottom,var(--void) 0%,var(--void) 45%,#241833 82%,#2e1c42 100%)}
+.footer-top{position:relative;z-index:2;display:flex;flex-wrap:wrap;justify-content:space-between;gap:40px;padding:clamp(48px,7vw,88px) clamp(18px,4vw,48px) clamp(64px,9vw,120px)}
+.footer-col{display:flex;flex-direction:column;gap:12px;min-width:120px}
+.footer-col h3{margin:0 0 2px;font-size:12px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.footer-col a,.footer-social a{text-decoration:none;font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--chrome)}
+.footer-col a:hover,.footer-social a:hover{color:var(--bone)}
+.footer-social{display:flex;flex-wrap:wrap;gap:clamp(20px,4vw,56px);align-items:flex-start}
+.footer-legal{position:relative;z-index:2;display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;padding:0 clamp(18px,4vw,48px) clamp(20px,3vw,32px);color:var(--muted);font-size:13px}
+.footer-legal a{color:inherit;text-decoration:none}
+.footer-legal a:hover{color:var(--bone)}
+.footer-legal-links{display:flex;gap:24px}
+.footer-wordmark{position:relative;height:clamp(140px,22vw,320px);margin-top:clamp(-10px,-2vw,-20px)}
+.footer-word{position:absolute;left:clamp(-48px,-4.5vw,-24px);bottom:clamp(-38px,-7vw,-92px);z-index:1;margin:0;font-weight:800;font-size:clamp(76px,19.5vw,340px);line-height:.86;letter-spacing:-.01em;text-transform:uppercase;font-variation-settings:"wdth" 125;color:var(--stone);white-space:nowrap;user-select:none}
+.drift-star{position:absolute;pointer-events:none;filter:drop-shadow(0 18px 32px rgba(0,0,0,.55));animation:drift 7s ease-in-out infinite}
+.drift-star.a{z-index:2;width:clamp(50px,7vw,110px);left:14%;top:8%;animation-delay:-1.2s}
+.drift-star.b{z-index:0;width:clamp(70px,9vw,150px);right:10%;top:28%;animation-delay:-3.6s}
+.drift-star.c{z-index:2;width:clamp(34px,4.5vw,70px);left:52%;top:0;animation-delay:-5.4s}
+@keyframes drift{0%,100%{transform:translateY(0) rotate(0deg)}50%{transform:translateY(-16px) rotate(4deg)}}
 
 @media (max-width:900px){
   .grid{grid-template-columns:repeat(2,1fr)}
@@ -165,12 +179,36 @@ footer a:hover{color:var(--bone)}
   </section>
 </main>
 
-<footer>
-  <span>&copy; 2026 Wockstar</span>
-  <nav aria-label="Social">
-    <a href="#" data-todo="instagram">Instagram</a>
-    <a href="#" data-todo="tiktok">TikTok</a>
-  </nav>
+<footer class="site-footer">
+  <div class="footer-top">
+    <div class="footer-col">
+      <h3>Shop</h3>
+      <a href="#drop">Drop 01</a>
+      <a href="#about">About</a>
+    </div>
+    <div class="footer-col">
+      <h3>Wockstar</h3>
+      <a href="#top">Home</a>
+      <a href="#alerts">Drop alerts</a>
+    </div>
+    <nav class="footer-social" aria-label="Social">
+      <a href="#" data-todo="instagram">Instagram</a>
+      <a href="#" data-todo="tiktok">TikTok</a>
+    </nav>
+  </div>
+  <div class="footer-legal">
+    <span>&copy; 2026 Wockstar. All rights reserved.</span>
+    <div class="footer-legal-links">
+      <a href="#" data-todo="terms">Terms &amp; conditions</a>
+      <a href="#" data-todo="privacy">Privacy policy</a>
+    </div>
+  </div>
+  <div class="footer-wordmark" aria-hidden="true">
+    <h4 class="footer-word">Wockstar</h4>
+    <img class="drift-star a" src="assets/footer/star-a.png" alt="" loading="lazy" onerror="this.style.display='none'">
+    <img class="drift-star b" src="assets/footer/star-b.png" alt="" loading="lazy" onerror="this.style.display='none'">
+    <img class="drift-star c" src="assets/footer/star-c.png" alt="" loading="lazy" onerror="this.style.display='none'">
+  </div>
 </footer>
 
 <script>
