@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..900&display=swap" rel="stylesheet">
+<script type="module" src="https://cdn.jsdelivr.net/npm/@google/model-viewer@3.5.0/dist/model-viewer.min.js"></script>
 <style>
 :root{
   --void:#000000;
@@ -56,6 +57,55 @@ a{color:inherit}
 .btn-main:hover{background:var(--bone);border-color:var(--bone)}
 .btn-ghost{color:var(--bone)}
 .btn-ghost:hover{background:rgba(184,140,242,.15)}
+
+/* hero hotspots */
+.hotspots{position:absolute;inset:0;z-index:2;pointer-events:none}
+.hotspot{position:absolute;transform:translate(-50%,-50%);width:34px;height:34px;border-radius:50%;border:none;background:transparent;pointer-events:auto;cursor:pointer;display:grid;place-items:center}
+.hotspot::before{content:"";width:14px;height:14px;border-radius:50%;background:var(--bone);box-shadow:0 0 0 0 rgba(239,237,243,.6);animation:hotspot-pulse 2.2s ease-out infinite}
+.hotspot:hover::before,.hotspot:focus-visible::before{background:var(--lav)}
+@keyframes hotspot-pulse{0%{box-shadow:0 0 0 0 rgba(239,237,243,.5)}70%{box-shadow:0 0 0 16px rgba(239,237,243,0)}100%{box-shadow:0 0 0 0 rgba(239,237,243,0)}}
+.hotspot .hs-label{position:absolute;bottom:calc(100% + 10px);left:50%;transform:translateX(-50%);white-space:nowrap;font-size:12px;font-weight:600;letter-spacing:.04em;color:var(--bone);background:rgba(10,9,12,.72);padding:6px 12px;border-radius:999px;opacity:0;transition:opacity .2s;pointer-events:none}
+.hotspot:hover .hs-label,.hotspot:focus-visible .hs-label{opacity:1}
+
+/* product modal */
+.product-modal{position:fixed;inset:0;z-index:50;display:grid;place-items:center;padding:24px;background:rgba(5,4,6,.72);backdrop-filter:blur(6px)}
+.product-modal[hidden]{display:none}
+.pm-panel{position:relative;width:100%;max-width:920px;max-height:88vh;overflow:auto;display:grid;grid-template-columns:1fr 1fr;gap:0;background:var(--stone);border:1px solid #2b2830;border-radius:14px}
+.pm-viewer{background:radial-gradient(120% 90% at 50% 30%,#2a2531,#0c0b0e 70%);min-height:340px;border-radius:14px 0 0 14px;overflow:hidden}
+.pm-viewer model-viewer{width:100%;height:100%;min-height:340px}
+.pm-body{padding:clamp(24px,4vw,40px);display:flex;flex-direction:column;gap:14px}
+.pm-cat{font-size:12px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.pm-name{margin:0;font-size:clamp(24px,2.6vw,32px);font-weight:800;line-height:1.08;font-variation-settings:"wdth" 112}
+.pm-price{font-size:22px;font-weight:600;color:var(--lav)}
+.pm-desc{margin:0;color:var(--chrome);font-size:15px;line-height:1.5}
+.pm-actions{display:flex;gap:12px;margin-top:8px;flex-wrap:wrap}
+.pm-close{position:absolute;top:14px;right:14px;width:36px;height:36px;border-radius:50%;border:1px solid #3a3641;background:rgba(0,0,0,.4);color:var(--bone);font-size:18px;line-height:1;cursor:pointer;display:grid;place-items:center;z-index:2}
+.pm-close:hover{background:rgba(0,0,0,.65)}
+.pm-added{color:var(--lav);font-size:14px;min-height:1.4em}
+@media (max-width:760px){.pm-panel{grid-template-columns:1fr}.pm-viewer{border-radius:14px 14px 0 0}}
+
+/* cart */
+.cart-btn{position:relative;display:inline-flex;align-items:center;gap:6px;background:none;border:none;color:var(--chrome);font:inherit;font-size:15px;font-weight:500;cursor:pointer;padding:0}
+.cart-btn:hover{color:var(--bone)}
+.cart-count{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 4px;border-radius:999px;background:var(--lav);color:#000;font-size:11px;font-weight:700}
+.cart-count[hidden]{display:none}
+.cart-drawer{position:fixed;top:0;right:0;bottom:0;z-index:55;width:min(400px,100vw);background:var(--stone);border-left:1px solid #2b2830;display:flex;flex-direction:column;transform:translateX(100%);transition:transform .3s cubic-bezier(.2,.7,.2,1)}
+.cart-drawer.open{transform:translateX(0)}
+.cart-drawer-head{display:flex;align-items:center;justify-content:space-between;padding:20px clamp(18px,4vw,28px);border-bottom:1px solid #2b2830}
+.cart-drawer-head h3{margin:0;font-size:18px;font-weight:800}
+.cart-items{flex:1;overflow:auto;padding:8px clamp(18px,4vw,28px)}
+.cart-item{display:flex;gap:12px;align-items:center;padding:14px 0;border-bottom:1px solid #221f27}
+.cart-item img,.cart-item .ci-ph{width:56px;height:56px;border-radius:8px;object-fit:cover;background:#0c0b0e;flex-shrink:0}
+.cart-item .ci-info{flex:1;min-width:0}
+.cart-item .ci-info .ci-name{font-size:14px;font-weight:600}
+.cart-item .ci-info .ci-price{font-size:13px;color:var(--muted)}
+.cart-item .ci-remove{background:none;border:none;color:var(--muted);font-size:13px;text-decoration:underline;cursor:pointer;padding:0}
+.cart-item .ci-remove:hover{color:var(--bone)}
+.cart-empty{color:var(--muted);padding:24px 0;font-size:14px}
+.cart-drawer-foot{padding:18px clamp(18px,4vw,28px);border-top:1px solid #2b2830;display:flex;align-items:center;justify-content:space-between}
+.cart-total{font-weight:700}
+.cart-scrim{position:fixed;inset:0;z-index:54;background:rgba(5,4,6,.6);opacity:0;pointer-events:none;transition:opacity .3s}
+.cart-scrim.open{opacity:1;pointer-events:auto}
 
 /* drop */
 .drop{padding:clamp(72px,11vw,140px) clamp(18px,4vw,48px) 40px;max-width:1440px;margin:0 auto;overflow:hidden}
@@ -127,7 +177,7 @@ a{color:inherit}
 @media (max-width:900px){
   .grid{grid-template-columns:repeat(2,1fr)}
   .manifesto,.alerts{grid-template-columns:1fr}
-  .nav li:not(:first-child){display:none}
+  .nav li:not(:first-child):not(:last-child){display:none}
 }
 @media (max-width:420px){
   .meta h3,.meta .price{font-size:16px}
@@ -146,6 +196,7 @@ a{color:inherit}
     <li><a href="#drop">Shop</a></li>
     <li><a href="#about">About</a></li>
     <li><a href="#alerts">Drop alerts</a></li>
+    <li><button class="cart-btn" id="cart-open" aria-label="Open cart">Cart <span class="cart-count" id="cart-count" hidden>0</span></button></li>
   </ul>
 </header>
 
@@ -154,6 +205,7 @@ a{color:inherit}
     <div class="hero-media">
       <video class="hero-video" muted loop playsinline preload="none" aria-hidden="true" tabindex="-1" poster="assets/hero-poster.jpg"><source data-src="assets/hero-loop.mp4" type="video/mp4"></video>
     </div>
+    <div class="hotspots" id="hotspots"></div>
     <div class="hero-copy">
       <h1 class="wordmark">Wockstar</h1>
       <div class="hero-row">
@@ -193,6 +245,36 @@ a{color:inherit}
     <p class="note" id="note" role="status"></p>
   </section>
 </main>
+
+<div class="product-modal" id="product-modal" hidden role="dialog" aria-modal="true" aria-labelledby="pm-name">
+  <div class="pm-panel">
+    <button class="pm-close" id="pm-close" aria-label="Close">&times;</button>
+    <div class="pm-viewer" id="pm-viewer"></div>
+    <div class="pm-body">
+      <span class="pm-cat" id="pm-cat"></span>
+      <h3 class="pm-name" id="pm-name"></h3>
+      <span class="pm-price" id="pm-price"></span>
+      <p class="pm-desc">Cut in small runs, printed by hand. Drag to spin the piece before you add it.</p>
+      <div class="pm-actions">
+        <button class="btn btn-main" id="pm-add">Add to cart</button>
+      </div>
+      <p class="pm-added" id="pm-added" role="status"></p>
+    </div>
+  </div>
+</div>
+
+<div class="cart-scrim" id="cart-scrim"></div>
+<aside class="cart-drawer" id="cart-drawer" aria-label="Cart">
+  <div class="cart-drawer-head">
+    <h3>Your cart</h3>
+    <button class="pm-close" id="cart-close" aria-label="Close cart" style="position:static">&times;</button>
+  </div>
+  <div class="cart-items" id="cart-items"></div>
+  <div class="cart-drawer-foot">
+    <span>Subtotal</span>
+    <span class="cart-total" id="cart-total">$0</span>
+  </div>
+</aside>
 
 <footer class="site-footer">
   <div class="footer-top">
@@ -362,12 +444,12 @@ customElements.define("loader-button", LoaderButton);
 // Edit products here. Set img to a photo path and buy to the checkout link.
 // video/poster: a short muted loop that plays on hover/tap, poster shown otherwise.
 const PIECES=[
-  {name:"Glitter Star Hoodie",cat:"Outerwear",price:220,img:"",video:"assets/products/star-hoodie.mp4",poster:"assets/products/star-hoodie.jpg",buy:"#"},
-  {name:"Star Patch Denim",cat:"Bottoms",price:260,img:"",video:"assets/products/star-denim.mp4",poster:"assets/products/star-denim.jpg",buy:"#"},
-  {name:"Field Camo Graphic",cat:"Tops",price:120,img:"",video:"assets/products/camo-tee.mp4",poster:"assets/products/camo-tee.jpg",buy:"#"},
-  {name:"Utility Star Cargo",cat:"Bottoms",price:180,img:"",video:"assets/products/star-shorts.mp4",poster:"assets/products/star-shorts.jpg",buy:"#"},
-  {name:"Camo Long Sleeve",cat:"Tops",price:140,img:"",video:"assets/products/camo-longsleeve.mp4",poster:"assets/products/camo-longsleeve.jpg",buy:"#"},
-  {name:"Star Trucker",cat:"Headwear",price:70,img:"",video:"assets/products/star-cap.mp4",poster:"assets/products/star-cap.jpg",buy:"#"}
+  {id:"hoodie",name:"Glitter Star Hoodie",cat:"Outerwear",price:220,img:"",video:"assets/products/star-hoodie.mp4",poster:"assets/products/star-hoodie.jpg",glb:"assets/products/star-hoodie.glb",buy:"#",hx:11,hy:32},
+  {id:"denim",name:"Star Patch Denim",cat:"Bottoms",price:260,img:"",video:"assets/products/star-denim.mp4",poster:"assets/products/star-denim.jpg",glb:"assets/products/star-denim.glb",buy:"#",hx:20,hy:53},
+  {id:"tee",name:"Field Camo Graphic",cat:"Tops",price:120,img:"",video:"assets/products/camo-tee.mp4",poster:"assets/products/camo-tee.jpg",glb:"assets/products/camo-tee.glb",buy:"#",hx:50,hy:47},
+  {id:"shorts",name:"Utility Star Cargo",cat:"Bottoms",price:180,img:"",video:"assets/products/star-shorts.mp4",poster:"assets/products/star-shorts.jpg",glb:"assets/products/star-shorts.glb",buy:"#",hx:80,hy:53},
+  {id:"longsleeve",name:"Camo Long Sleeve",cat:"Tops",price:140,img:"",video:"assets/products/camo-longsleeve.mp4",poster:"assets/products/camo-longsleeve.jpg",glb:"assets/products/camo-longsleeve.glb",buy:"#",hx:91,hy:33},
+  {id:"cap",name:"Star Trucker",cat:"Headwear",price:70,img:"",video:"assets/products/star-cap.mp4",poster:"assets/products/star-cap.jpg",glb:"assets/products/star-cap.glb",buy:"#",hx:90,hy:14}
 ];
 const crest=document.querySelector('.crest').src;
 document.getElementById('grid').innerHTML=PIECES.map(p=>`
@@ -378,8 +460,120 @@ document.getElementById('grid').innerHTML=PIECES.map(p=>`
       ?`<img src="${p.img}" alt="${p.name}" loading="lazy">`
       :`<div class="ph"><img src="${crest}" alt=""><span>Photo coming</span></div>`}</div>
     <div class="meta"><span class="cat">${p.cat}</span><h3>${p.name}</h3><span class="price">$${p.price}</span></div>
-    <a class="btn btn-ghost buy" href="${p.buy}" aria-label="Buy ${p.name}">Buy</a>
+    <button class="btn btn-ghost buy" type="button" data-piece="${p.id}" aria-label="View ${p.name}">View in 3D</button>
   </article>`).join('');
+
+// Hero hotspots, product modal (3D viewer + add to cart), and cart drawer.
+(function(){
+  const hotspotLayer = document.getElementById('hotspots');
+  hotspotLayer.innerHTML = PIECES.map(p => `
+    <button class="hotspot" type="button" data-piece="${p.id}" style="left:${p.hx}%;top:${p.hy}%" aria-label="View ${p.name}">
+      <span class="hs-label">${p.name}</span>
+    </button>`).join('');
+
+  const modal = document.getElementById('product-modal');
+  const pmViewer = document.getElementById('pm-viewer');
+  const pmCat = document.getElementById('pm-cat');
+  const pmName = document.getElementById('pm-name');
+  const pmPrice = document.getElementById('pm-price');
+  const pmAdd = document.getElementById('pm-add');
+  const pmAdded = document.getElementById('pm-added');
+  let current = null;
+
+  function openModal(id){
+    const p = PIECES.find(x => x.id === id);
+    if (!p) return;
+    current = p;
+    pmCat.textContent = p.cat;
+    pmName.textContent = p.name;
+    pmPrice.textContent = '$' + p.price;
+    pmAdded.textContent = '';
+    pmViewer.innerHTML = `<model-viewer src="${p.glb}" camera-controls auto-rotate auto-rotate-delay="600" rotation-per-second="24deg" exposure="1" shadow-intensity="0.7" style="background:transparent"></model-viewer>`;
+    modal.hidden = false;
+    document.body.style.overflow = 'hidden';
+  }
+  function closeModal(){
+    modal.hidden = true;
+    pmViewer.innerHTML = '';
+    document.body.style.overflow = '';
+  }
+  document.addEventListener('click', e => {
+    const trigger = e.target.closest('[data-piece]');
+    if (trigger) { openModal(trigger.dataset.piece); return; }
+    if (e.target.id === 'product-modal') closeModal();
+  });
+  document.getElementById('pm-close').addEventListener('click', closeModal);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !modal.hidden) closeModal(); });
+
+  // Cart: localStorage-backed { id: qty }
+  const CART_KEY = 'wockstar-cart';
+  function readCart(){ try { return JSON.parse(localStorage.getItem(CART_KEY)) || {}; } catch { return {}; } }
+  function writeCart(cart){ try { localStorage.setItem(CART_KEY, JSON.stringify(cart)); } catch {} }
+
+  const cartCount = document.getElementById('cart-count');
+  const cartItems = document.getElementById('cart-items');
+  const cartTotal = document.getElementById('cart-total');
+  const cartDrawer = document.getElementById('cart-drawer');
+  const cartScrim = document.getElementById('cart-scrim');
+
+  function renderCart(){
+    const cart = readCart();
+    const ids = Object.keys(cart).filter(id => cart[id] > 0);
+    const count = ids.reduce((sum, id) => sum + cart[id], 0);
+    cartCount.textContent = count;
+    cartCount.hidden = count === 0;
+    if (!ids.length){
+      cartItems.innerHTML = '<p class="cart-empty">Your cart is empty.</p>';
+      cartTotal.textContent = '$0';
+      return;
+    }
+    let total = 0;
+    cartItems.innerHTML = ids.map(id => {
+      const p = PIECES.find(x => x.id === id);
+      if (!p) return '';
+      const qty = cart[id];
+      total += p.price * qty;
+      return `<div class="cart-item">
+        <img src="${p.poster}" alt="">
+        <div class="ci-info">
+          <div class="ci-name">${p.name}${qty > 1 ? ` &times; ${qty}` : ''}</div>
+          <div class="ci-price">$${p.price * qty}</div>
+        </div>
+        <button class="ci-remove" type="button" data-remove="${id}">Remove</button>
+      </div>`;
+    }).join('');
+    cartTotal.textContent = '$' + total;
+  }
+  function addToCart(id){
+    const cart = readCart();
+    cart[id] = (cart[id] || 0) + 1;
+    writeCart(cart);
+    renderCart();
+  }
+  function removeFromCart(id){
+    const cart = readCart();
+    delete cart[id];
+    writeCart(cart);
+    renderCart();
+  }
+  function openCart(){ cartDrawer.classList.add('open'); cartScrim.classList.add('open'); }
+  function closeCart(){ cartDrawer.classList.remove('open'); cartScrim.classList.remove('open'); }
+
+  pmAdd.addEventListener('click', () => {
+    if (!current) return;
+    addToCart(current.id);
+    pmAdded.textContent = `Added ${current.name} to your cart.`;
+  });
+  document.getElementById('cart-open').addEventListener('click', openCart);
+  document.getElementById('cart-close').addEventListener('click', closeCart);
+  cartScrim.addEventListener('click', closeCart);
+  cartItems.addEventListener('click', e => {
+    const btn = e.target.closest('[data-remove]');
+    if (btn) removeFromCart(btn.dataset.remove);
+  });
+
+  renderCart();
+})();
 
 // Product-card videos: play on hover/tap, never autoplay under reduced motion,
 // and pause anything off-screen so a scrolled-past card never keeps looping.
