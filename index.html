@@ -64,7 +64,7 @@ a{color:inherit}
 .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:clamp(14px,2vw,28px)}
 .piece{display:flex;flex-direction:column}
 .shot{position:relative;aspect-ratio:4/5;border-radius:6px;overflow:hidden;background:radial-gradient(120% 90% at 50% 20%,#2a2531,var(--stone) 60%,#050406)}
-.shot img{width:100%;height:100%;object-fit:cover}
+.shot img,.shot video{width:100%;height:100%;object-fit:cover}
 .shot .ph{position:absolute;inset:0;display:grid;place-items:center}
 .shot .ph img{width:46%;height:auto;opacity:.22;filter:grayscale(.4)}
 .shot .ph span{position:absolute;bottom:14px;left:16px;font-size:13px;color:var(--muted)}
@@ -202,23 +202,53 @@ footer a:hover{color:var(--bone)}
 })();
 
 // Edit products here. Set img to a photo path and buy to the checkout link.
+// video/poster: a short muted loop that plays on hover/tap, poster shown otherwise.
 const PIECES=[
-  {name:"Glitter Star Hoodie",cat:"Outerwear",price:220,img:"",buy:"#"},
-  {name:"Star Patch Denim",cat:"Bottoms",price:260,img:"",buy:"#"},
-  {name:"Field Camo Graphic",cat:"Tops",price:120,img:"",buy:"#"},
-  {name:"Utility Star Cargo",cat:"Bottoms",price:180,img:"",buy:"#"},
+  {name:"Glitter Star Hoodie",cat:"Outerwear",price:220,img:"",video:"assets/products/star-hoodie.mp4",poster:"assets/products/star-hoodie.jpg",buy:"#"},
+  {name:"Star Patch Denim",cat:"Bottoms",price:260,img:"",video:"assets/products/star-denim.mp4",poster:"assets/products/star-denim.jpg",buy:"#"},
+  {name:"Field Camo Graphic",cat:"Tops",price:120,img:"",video:"assets/products/camo-tee.mp4",poster:"assets/products/camo-tee.jpg",buy:"#"},
+  {name:"Utility Star Cargo",cat:"Bottoms",price:180,img:"",video:"assets/products/star-shorts.mp4",poster:"assets/products/star-shorts.jpg",buy:"#"},
   {name:"Camo Long Sleeve",cat:"Tops",price:140,img:"",buy:"#"},
-  {name:"Star Trucker",cat:"Headwear",price:70,img:"",buy:"#"}
+  {name:"Star Trucker",cat:"Headwear",price:70,img:"",video:"assets/products/star-cap.mp4",poster:"assets/products/star-cap.jpg",buy:"#"}
 ];
 const crest=document.querySelector('.crest').src;
 document.getElementById('grid').innerHTML=PIECES.map(p=>`
   <article class="piece">
-    <div class="shot">${p.img
+    <div class="shot">${p.video
+      ?`<video class="piece-video" muted loop playsinline preload="none" poster="${p.poster}" aria-hidden="true" tabindex="-1"><source data-src="${p.video}" type="video/mp4"></video>`
+      :p.img
       ?`<img src="${p.img}" alt="${p.name}" loading="lazy">`
       :`<div class="ph"><img src="${crest}" alt=""><span>Photo coming</span></div>`}</div>
     <div class="meta"><span class="cat">${p.cat}</span><h3>${p.name}</h3><span class="price">$${p.price}</span></div>
     <a class="btn btn-ghost buy" href="${p.buy}" aria-label="Buy ${p.name}">Buy</a>
   </article>`).join('');
+
+// Product-card videos: play on hover/tap, never autoplay under reduced motion,
+// and pause anything off-screen so a scrolled-past card never keeps looping.
+(function(){
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
+  const videos = Array.from(document.querySelectorAll('.piece-video'));
+  if (!videos.length) return;
+  function arm(v){
+    if (v.dataset.armed) return;
+    v.dataset.armed = '1';
+    v.querySelectorAll('source[data-src]').forEach(s => { s.src = s.dataset.src; });
+    v.load();
+  }
+  function playSafe(v){ if (reduceMotion.matches) return; arm(v); v.play().catch(()=>{}); }
+  function pauseSafe(v){ v.pause(); }
+  videos.forEach(v => {
+    v.addEventListener('error', () => { v.style.display = 'none'; });
+    const card = v.closest('.piece');
+    card.addEventListener('mouseenter', () => playSafe(v));
+    card.addEventListener('mouseleave', () => pauseSafe(v));
+    card.addEventListener('touchstart', () => playSafe(v), { passive: true });
+  });
+  const io = new IntersectionObserver(entries => {
+    entries.forEach(e => { if (!e.isIntersecting) pauseSafe(e.target); });
+  }, { threshold: 0 });
+  videos.forEach(v => io.observe(v));
+})();
 
 document.getElementById('alert-form').addEventListener('submit',e=>{
   e.preventDefault();
