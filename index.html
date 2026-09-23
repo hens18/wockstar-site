@@ -1059,11 +1059,11 @@ import { GLTFLoader } from './assets/vendor/three/loaders/GLTFLoader.js';
   neonGlow.position.set(0, 3.3, FZ - 0.8);
   scene.add(neonGlow);
   const dropNeon = new THREE.Mesh(
-    new THREE.PlaneGeometry(1.4, 0.35),
+    new THREE.PlaneGeometry(1.2, 0.3),
     new THREE.MeshBasicMaterial({ map: makeNeonTexture('DROP 01', '#3fd0ff', { font: '800 170px Arial, sans-serif' }), transparent: true, depthWrite: false })
   );
   dropNeon.rotation.y = Math.PI;
-  dropNeon.position.set(2.8, 2.45, FZ - 0.05);
+  dropNeon.position.set((1.35 + (1.35 + HALF - 0.3) / 2 - 0.03) / 2, 2.45, FZ - 0.14);   // centered on the inner pane, clear of the mullion
   scene.add(dropNeon);
 
   // what you see through the glass: a night street, drawn once to a canvas
@@ -1253,8 +1253,8 @@ import { GLTFLoader } from './assets/vendor/three/loaders/GLTFLoader.js';
   }
 
   addKiosk(-3.4, 1.6, 'About', 'about', 0xb88cf2);
-  addKiosk(-1.9, -11.2, 'Drop Alerts', 'signup', 0xb88cf2);
-  addKiosk(1.9, -11.2, 'Info', 'info', 0x8d8894);
+  addKiosk(-3.3, -10.2, 'Drop Alerts', 'signup', 0xb88cf2);
+  addKiosk(3.3, -10.2, 'Info', 'info', 0x8d8894);
 
   // wall shelving: stocked units between the posters on every wall. All the boxes go into
   // one instanced mesh (plus one for the LED strips) so dozens of items cost two draw calls.
@@ -1410,6 +1410,301 @@ import { GLTFLoader } from './assets/vendor/three/loaders/GLTFLoader.js';
   cctvSign.rotation.y = Math.PI;
   cctvSign.position.set(-1.175, 1.75, FZ - 0.08);
   scene.add(cctvSign);
+
+
+  // ---- DJ booth in front of the crest: turntables, mixer, PA stacks, beams ----
+  const DJ_Z = -11.3;
+  const dj = new THREE.Group();
+  dj.position.set(0, 0, DJ_Z);
+  scene.add(dj);
+  const goldMat = new THREE.MeshStandardMaterial({ color: 0xd9b24a, roughness: 0.25, metalness: 1 });
+  const platMat = new THREE.MeshStandardMaterial({ color: 0xe4e6ee, roughness: 0.2, metalness: 1 });
+  const vinylMat = new THREE.MeshStandardMaterial({ color: 0x08070a, roughness: 0.25, metalness: 0.3 });
+  const djBox = (w, h, d, x, y, z, mat, parent) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+    m.position.set(x, y, z);
+    (parent || dj).add(m);
+    return m;
+  };
+  djBox(2.1, 1.0, 0.75, 0, 0.5, 0, counterMat);
+  djBox(2.14, 0.04, 0.79, 0, 1.02, 0, darkMat);
+  djBox(2.1, 0.02, 0.02, 0, 0.995, 0.385, new THREE.MeshBasicMaterial({ color: 0xff4fd8 }));
+  const djName = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.6, 0.2),
+    new THREE.MeshBasicMaterial({ map: makeNeonTexture('WOCKSTAR SOUND', '#ff4fd8', { w: 2048, font: '800 170px Arial, sans-serif' }), transparent: true, depthWrite: false })
+  );
+  djName.position.set(0, 0.86, 0.378);
+  dj.add(djName);
+  // LED equalizer across the front of the booth, driven by the beat in animate()
+  const EQ_N = 26;
+  const eqBars = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: 0xffffff }), EQ_N);
+  const eqLevels = new Float32Array(EQ_N);
+  {
+    const c = new THREE.Color();
+    for (let i = 0; i < EQ_N; i++) eqBars.setColorAt(i, c.setHSL(0.8 - (i / EQ_N) * 0.32, 0.95, 0.62));
+    eqBars.instanceColor.needsUpdate = true;
+  }
+  eqBars.position.set(0, 0.1, 0.382);
+  dj.add(eqBars);
+  const eqDummy = new THREE.Object3D();
+  // turntables
+  const platters = [];
+  const labelColors = ['#b88cf2', '#ff4fd8'];
+  [-0.62, 0.62].forEach((tx, i) => {
+    djBox(0.46, 0.07, 0.36, tx, 1.075, 0, platMat);
+    const platter = new THREE.Group();
+    platter.position.set(tx - 0.04, 1.117, 0.0);
+    dj.add(platter);
+    const rec = new THREE.Mesh(new THREE.CylinderGeometry(0.148, 0.148, 0.006, 40), vinylMat);
+    platter.add(rec);
+    const lc = document.createElement('canvas');
+    lc.width = lc.height = 128;
+    const lx = lc.getContext('2d');
+    lx.fillStyle = labelColors[i]; lx.beginPath(); lx.arc(64, 64, 64, 0, Math.PI * 2); lx.fill();
+    lx.fillStyle = '#0c0b0e'; lx.font = '800 26px Arial'; lx.textAlign = 'center'; lx.fillText('WOCK', 64, 56); lx.fillText('STAR', 64, 86);
+    lx.beginPath(); lx.arc(64, 64, 5, 0, Math.PI * 2); lx.fill();
+    const labelTex = new THREE.CanvasTexture(lc);
+    labelTex.colorSpace = THREE.SRGBColorSpace;
+    const label = new THREE.Mesh(new THREE.CircleGeometry(0.048, 28), new THREE.MeshBasicMaterial({ map: labelTex }));
+    label.rotation.x = -Math.PI / 2;
+    label.position.y = 0.0035;
+    platter.add(label);
+    platters.push(platter);
+    // tonearm
+    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.24, 8), platMat);
+    arm.rotation.set(Math.PI / 2, 0, 0.35);
+    arm.position.set(tx + 0.13, 1.135, -0.02);
+    dj.add(arm);
+    const armBase = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.026, 0.03, 12), darkMat);
+    armBase.position.set(tx + 0.17, 1.125, -0.12);
+    dj.add(armBase);
+  });
+  // mixer: faders, knobs, VU meters
+  djBox(0.36, 0.07, 0.34, 0, 1.075, 0, darkMat);
+  const knobMat = new THREE.MeshStandardMaterial({ color: 0xd9d4e6, roughness: 0.4, metalness: 0.4 });
+  for (let r = 0; r < 3; r++) for (let c = 0; c < 2; c++) {
+    const knob = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.02, 10), knobMat);
+    knob.position.set(-0.07 + c * 0.14, 1.12, -0.12 + r * 0.06);
+    dj.add(knob);
+  }
+  [-0.07, 0.07].forEach((fx) => djBox(0.02, 0.02, 0.05, fx, 1.12, 0.09, knobMat));
+  djBox(0.05, 0.02, 0.02, 0.02, 1.12, 0.14, knobMat);   // crossfader
+  const vuMeters = [-0.02, 0.02].map((vx) => {
+    const v = djBox(0.018, 1, 0.01, vx, 1.11, -0.02, new THREE.MeshBasicMaterial({ color: 0x3fffb0 }));
+    v.scale.y = 0.05;
+    return v;
+  });
+  // laptop on a stand, facing the DJ
+  djBox(0.05, 0.14, 0.05, 0, 1.11, -0.28, darkMat);
+  djBox(0.32, 0.012, 0.22, 0, 1.19, -0.28, platMat);
+  const lid = djBox(0.32, 0.21, 0.01, 0, 1.3, -0.4, platMat);
+  lid.rotation.x = 0.25;
+  const lidLogo = new THREE.Mesh(new THREE.CircleGeometry(0.03, 20), new THREE.MeshBasicMaterial({ color: 0xb88cf2 }));
+  lidLogo.position.z = 0.006;
+  lid.add(lidLogo);
+  // headphones resting on the desk
+  const cans = new THREE.Group();
+  cans.position.set(0.98, 1.06, 0.18);
+  cans.rotation.y = -0.5;
+  dj.add(cans);
+  const band = new THREE.Mesh(new THREE.TorusGeometry(0.085, 0.01, 8, 20, Math.PI), darkMat);
+  band.position.y = 0.03;
+  cans.add(band);
+  [-0.085, 0.085].forEach((cx) => {
+    const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.035, 16), darkMat);
+    cup.rotation.z = Math.PI / 2;
+    cup.position.set(cx, 0.03, 0);
+    cans.add(cup);
+  });
+  // studio mic on a desk boom arm
+  const boom = new THREE.Group();
+  boom.position.set(-0.95, 1.04, -0.25);
+  dj.add(boom);
+  const boomA = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.42, 8), darkMat);
+  boomA.position.set(0, 0.2, 0);
+  boomA.rotation.z = -0.3;
+  boom.add(boomA);
+  const boomB = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.36, 8), darkMat);
+  boomB.position.set(0.2, 0.4, 0.04);
+  boomB.rotation.z = -1.25;
+  boom.add(boomB);
+  const micBody = new THREE.Mesh(new THREE.CapsuleGeometry(0.03, 0.09, 4, 12), platMat);
+  micBody.position.set(0.36, 0.44, 0.06);
+  boom.add(micBody);
+  const popFilter = new THREE.Mesh(new THREE.CircleGeometry(0.06, 20), new THREE.MeshStandardMaterial({ color: 0x111014, transparent: true, opacity: 0.55, side: THREE.DoubleSide }));
+  popFilter.position.set(0.36, 0.44, 0.16);
+  boom.add(popFilter);
+  // PA stacks either side, woofers pump on the kick
+  const woofers = [];
+  const beams = [];
+  [-1, 1].forEach((s) => {
+    const pa = new THREE.Group();
+    pa.position.set(s * 1.42, 0, -0.05);
+    dj.add(pa);
+    djBox(0.52, 0.08, 0.48, 0, 0.04, 0, darkMat, pa);
+    djBox(0.5, 1.3, 0.45, 0, 0.73, 0, new THREE.MeshStandardMaterial({ color: 0x121016, roughness: 0.7 }), pa);
+    [0.42, 0.86].forEach((wy) => {
+      const surround = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.018, 8, 28), darkMat);
+      surround.position.set(0, wy, 0.226);
+      pa.add(surround);
+      const cone = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.05, 0.07, 28, 1, true), new THREE.MeshStandardMaterial({ color: 0x1b1a20, roughness: 0.9, side: THREE.DoubleSide }));
+      cone.rotation.x = Math.PI / 2;
+      cone.position.set(0, wy, 0.2);
+      pa.add(cone);
+      const cap = new THREE.Mesh(new THREE.SphereGeometry(0.05, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x2a2833, roughness: 0.5 }));
+      cap.rotation.x = Math.PI / 2;
+      cap.position.set(0, wy, 0.17);
+      pa.add(cap);
+      woofers.push({ cone, cap, baseZ: 0.2 });
+    });
+    djBox(0.28, 0.1, 0.02, 0, 1.2, 0.226, darkMat, pa);   // tweeter horn
+    djBox(0.5, 0.012, 0.012, 0, 1.36, 0.228, new THREE.MeshBasicMaterial({ color: s < 0 ? 0xff4fd8 : 0x3fd0ff }), pa);
+    // moving-head light on top, throwing a hazy beam that sweeps the room
+    const head = new THREE.Group();
+    head.position.set(0, 1.47, 0);
+    pa.add(head);
+    djBox(0.16, 0.12, 0.16, 0, 0, 0, darkMat, head);
+    const beamGeo = new THREE.ConeGeometry(0.55, 4.5, 24, 1, true);
+    beamGeo.translate(0, -2.25, 0);
+    const beam = new THREE.Mesh(beamGeo, new THREE.MeshBasicMaterial({
+      color: s < 0 ? 0xff4fd8 : 0x3fd0ff, transparent: true, opacity: 0.07,
+      blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false,
+    }));
+    head.add(beam);
+    beams.push({ head, side: s });
+  });
+  // ON AIR box hung from the ceiling over the booth
+  const onAir = new THREE.Group();
+  onAir.position.set(0, 3.45, DJ_Z + 0.7);
+  scene.add(onAir);
+  djBox(0.8, 0.24, 0.08, 0, 0, 0, darkMat, onAir);
+  const onAirFace = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.76, 0.2),
+    new THREE.MeshBasicMaterial({ map: makeNeonTexture('ON AIR', '#ff2a3a', { font: '900 170px Arial, sans-serif' }), transparent: true, depthWrite: false })
+  );
+  onAirFace.position.z = 0.041;
+  onAir.add(onAirFace);
+  [-0.3, 0.3].forEach((wx) => djBox(0.006, 0.45, 0.006, wx, 0.34, 0, darkMat, onAir));
+  const booth = new THREE.PointLight(0xff4fd8, 10, 4, 2);
+  booth.position.set(0, 1.9, DJ_Z + 0.9);
+  scene.add(booth);
+  [-1.4, -0.7, 0, 0.7, 1.4].forEach((bx) => colliders.push({ x: bx, z: DJ_Z, radius: 0.65 }));
+
+  // milk crates of records beside the booth
+  const crateTex = (() => {
+    const c = document.createElement('canvas');
+    c.width = c.height = 128;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, 128, 128);
+    ctx.clearRect(0, 0, 0, 0);
+    for (let y = 14; y < 118; y += 22) for (let x = 12; x < 116; x += 22) { ctx.clearRect(x, y, 14, 14); }
+    const t = new THREE.CanvasTexture(c);
+    return t;
+  })();
+  const recordBoxes = [];
+  const sleeveColors = [0xb88cf2, 0xff4fd8, 0x3fd0ff, 0xe9e6ef, 0x1a1622, 0xd9b24a, 0x5a3690, 0x8a1f3c];
+  [[-1.25, -10.45, 0, 0x5a3690, 0.2], [-1.25, -10.45, 0.34, 0x1a1622, -0.1], [-0.88, -10.4, 0, 0x2a2533, 0.35], [1.2, -10.45, 0, 0xb88cf2, -0.25]].forEach(([cx, cz, cy, col, ry]) => {
+    const crate = new THREE.Group();
+    crate.position.set(cx, cy, cz);
+    crate.rotation.y = ry;
+    scene.add(crate);
+    const sideMat = new THREE.MeshStandardMaterial({ color: col, roughness: 0.6, alphaMap: crateTex, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide });
+    const S = 0.34;
+    [[0, S / 2, S / 2, 0], [0, S / 2, -S / 2, 0], [S / 2, S / 2, 0, Math.PI / 2], [-S / 2, S / 2, 0, Math.PI / 2]].forEach(([px, py, pz, r]) => {
+      const side = new THREE.Mesh(new THREE.PlaneGeometry(S, S), sideMat);
+      side.position.set(px, py, pz);
+      side.rotation.y = r;
+      crate.add(side);
+    });
+    const floorP = new THREE.Mesh(new THREE.PlaneGeometry(S, S), new THREE.MeshStandardMaterial({ color: col, roughness: 0.6 }));
+    floorP.rotation.x = -Math.PI / 2;
+    floorP.position.y = 0.01;
+    crate.add(floorP);
+    crate.updateMatrixWorld(true);
+    for (let k = 0; k < 11; k++) {
+      const lean = (k - 5) * 0.012;
+      const m = new THREE.Matrix4().compose(
+        new THREE.Vector3(0, 0.165, -0.13 + k * 0.026),
+        new THREE.Quaternion().setFromEuler(new THREE.Euler(lean + (rnd() - 0.5) * 0.06, 0, 0)),
+        new THREE.Vector3(0.31, 0.31, 0.006)
+      );
+      recordBoxes.push({ m: crate.matrixWorld.clone().multiply(m), color: sleeveColors[Math.floor(rnd() * sleeveColors.length)] });
+    }
+  });
+  bakeInstances(recordBoxes, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.55 }));
+  colliders.push({ x: -1.1, z: -10.45, radius: 0.45 }, { x: 1.2, z: -10.45, radius: 0.3 });
+
+  // gold + platinum record plaques above the shelving
+  function addPlaque(x, y, z, rotY, mat){
+    const g = new THREE.Group();
+    g.position.set(x, y, z);
+    g.rotation.y = rotY;
+    scene.add(g);
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.66, 0.035), darkMat);
+    g.add(frame);
+    const backing = new THREE.Mesh(new THREE.PlaneGeometry(0.44, 0.6), new THREE.MeshStandardMaterial({ color: 0x1a1226, roughness: 0.9 }));
+    backing.position.z = 0.018;
+    g.add(backing);
+    const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.008, 40), mat);
+    disc.rotation.x = Math.PI / 2;
+    disc.position.set(0, 0.06, 0.025);
+    g.add(disc);
+    const lbl = new THREE.Mesh(new THREE.CircleGeometry(0.05, 24), new THREE.MeshBasicMaterial({ color: 0xb88cf2 }));
+    lbl.position.set(0, 0.06, 0.03);
+    g.add(lbl);
+    const plate = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.06, 0.006), mat);
+    plate.position.set(0, -0.22, 0.022);
+    g.add(plate);
+  }
+  addPlaque(WALL_L + 0.02, 3.32, -6.85, Math.PI / 2, goldMat);
+  addPlaque(WALL_L + 0.02, 3.32, -10.55, Math.PI / 2, platMat);
+  addPlaque(WALL_R - 0.02, 3.32, -2.75, -Math.PI / 2, platMat);
+  addPlaque(WALL_R - 0.02, 3.32, -10.55, -Math.PI / 2, goldMat);
+  [-3.28, -2.62, 2.62, 3.28].forEach((px, i) => addPlaque(px, 3.32, WALL_B + 0.02, 0, i % 2 ? goldMat : platMat));
+
+  // the vault: a lit glass case with chains, by the checkout side of the store
+  const VAULT = { x: 2.75, z: -2.75 };
+  const vault = new THREE.Group();
+  vault.position.set(VAULT.x, 0, VAULT.z);
+  scene.add(vault);
+  djBox(0.6, 0.95, 0.6, 0, 0.475, 0, counterMat, vault);
+  djBox(0.62, 0.015, 0.62, 0, 0.955, 0, new THREE.MeshBasicMaterial({ color: 0xd9b24a }), vault);
+  djBox(0.54, 0.02, 0.54, 0, 0.97, 0, new THREE.MeshStandardMaterial({ color: 0x0c0710, roughness: 1 }), vault);
+  const caseGlass = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.4, 0.58), glassMat);
+  caseGlass.position.y = 1.165;
+  vault.add(caseGlass);
+  const LINKS = 44;
+  const chainMesh = new THREE.InstancedMesh(new THREE.TorusGeometry(0.013, 0.0045, 6, 12), goldMat, LINKS * 2);
+  {
+    const d = new THREE.Object3D();
+    let n = 0;
+    [[0.17, 0.12, 0.0, 0], [0.12, 0.08, 0.04, 1]].forEach(([a, b, oz, ci]) => {
+      for (let i = 0; i < LINKS; i++) {
+        const t = (i / LINKS) * Math.PI * 2;
+        d.position.set(Math.cos(t) * a, 0.99 + ci * 0.01, Math.sin(t) * b + oz);
+        d.rotation.order = 'YXZ';   // turn each link along the loop, alternate flat / upright
+        d.rotation.set(i % 2 ? Math.PI / 2 : 0, -t + Math.PI / 2, 0);
+        d.updateMatrix();
+        chainMesh.setMatrixAt(n++, d.matrix);
+      }
+    });
+    chainMesh.instanceMatrix.needsUpdate = true;
+  }
+  vault.add(chainMesh);
+  const starShape = new THREE.Shape();
+  for (let i = 0; i < 10; i++) {
+    const r = i % 2 ? 0.024 : 0.06, a = (i / 10) * Math.PI * 2 - Math.PI / 2;
+    i ? starShape.lineTo(Math.cos(a) * r, Math.sin(a) * r) : starShape.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+  }
+  const pendant = new THREE.Mesh(new THREE.ExtrudeGeometry(starShape, { depth: 0.012, bevelEnabled: true, bevelSize: 0.004, bevelThickness: 0.004, bevelSegments: 1 }), goldMat);
+  pendant.position.set(0, 1.06, 0.1);
+  pendant.rotation.x = -0.3;
+  vault.add(pendant);
+  const vaultLight = new THREE.PointLight(0xffe2a0, 5, 1.6, 2);
+  vaultLight.position.set(0, 1.5, 0.2);
+  vault.add(vaultLight);
+  colliders.push({ x: VAULT.x, z: VAULT.z, radius: 0.55 });
 
   // 6 garments on pedestals along both side walls, aisle down the middle
   const N = window.PIECES.length;
@@ -1625,9 +1920,33 @@ import { GLTFLoader } from './assets/vendor/three/loaders/GLTFLoader.js';
   addMannequin(-0.55, ISLAND_Z, 0.12, { top: 'hoodie', bottom: 'shorts', cap: true }, 0.16);
   addMannequin(0.55, ISLAND_Z, -0.12, { top: 'longsleeve', bottom: 'denim' }, 0.16);
   colliders.push({ x: 0, z: ISLAND_Z, radius: 0.75 });
+  const boombox = new THREE.Group();
+  boombox.position.set(0, 0.16, ISLAND_Z + 0.2);
+  scene.add(boombox);
+  djBox(0.46, 0.25, 0.13, 0, 0.125, 0, platMat, boombox);
+  djBox(0.44, 0.23, 0.005, 0, 0.125, 0.066, darkMat, boombox);
+  [-0.14, 0.14].forEach((bx) => {
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.068, 0.008, 8, 24), platMat);
+    ring.position.set(bx, 0.115, 0.07);
+    boombox.add(ring);
+    const cone = new THREE.Mesh(new THREE.CircleGeometry(0.062, 24), new THREE.MeshStandardMaterial({ color: 0x1b1a20, roughness: 0.9 }));
+    cone.position.set(bx, 0.115, 0.069);
+    boombox.add(cone);
+    woofers.push({ cone, cap: null, baseZ: 0.069, small: true });
+  });
+  const deck = new THREE.Mesh(new THREE.PlaneGeometry(0.1, 0.07), new THREE.MeshBasicMaterial({ color: 0x3fd0ff, transparent: true, opacity: 0.5 }));
+  deck.position.set(0, 0.13, 0.07);
+  boombox.add(deck);
+  const bbHandle = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.01, 6, 20, Math.PI), platMat);
+  bbHandle.position.set(0, 0.25, 0);
+  boombox.add(bbHandle);
+  const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.003, 0.003, 0.36, 6), platMat);
+  antenna.position.set(0.17, 0.4, -0.03);
+  antenna.rotation.z = -0.5;
+  boombox.add(antenna);
   // front windows, turned to face into the store
-  addMannequin(-2.7, 2.85, Math.atan2(0.35, -1), { top: 'longsleeve', bottom: 'shorts' });
-  addMannequin(2.7, 2.85, Math.atan2(-0.35, -1), { top: 'hoodie', bottom: 'denim', cap: true });
+  addMannequin(-3.5, 2.85, Math.atan2(0.3, -1), { top: 'longsleeve', bottom: 'shorts' });
+  addMannequin(3.5, 2.85, Math.atan2(-0.3, -1), { top: 'hoodie', bottom: 'denim', cap: true });
 
   // bake a static environment map so the glossy floor actually reflects the room's
   // color - scoped to just the floor material, not scene.environment, which would
@@ -1897,6 +2216,36 @@ import { GLTFLoader } from './assets/vendor/three/loaders/GLTFLoader.js';
       const sway = reduceMotion ? 0 : Math.sin(t * 0.9 + ri.phase) * 0.03;
       ri.item.rotation.x = sway - ri.lift * 0.22;
     });
+    // the booth plays at 90bpm: records spin, woofers pump on the kick, EQ and beams follow
+    if (!reduceMotion) {
+      platters.forEach((p) => { p.rotation.y -= dt * 3.5; });
+      const beat = (t * 1.5) % 1;
+      const kick = Math.exp(-beat * 7);
+      const snare = Math.exp(-((beat + 0.5) % 1) * 9) * 0.6;
+      woofers.forEach((w) => {
+        const push = kick * (w.small ? 0.6 : 1);
+        w.cone.scale.setScalar(1 + push * 0.06);
+        w.cone.position.z = w.baseZ + push * 0.018;
+        if (w.cap) w.cap.position.z = w.baseZ - 0.03 + push * 0.025;
+      });
+      for (let i = 0; i < EQ_N; i++) {
+        const f = i / EQ_N;
+        const target = 0.06 + kick * 0.55 * (1 - f) + snare * 0.45 * Math.sin(f * Math.PI)
+          + 0.18 * Math.abs(Math.sin(t * (2.1 + f * 5) + i * 1.3)) * (0.4 + f);
+        eqLevels[i] += (target - eqLevels[i]) * Math.min(1, dt * 14);
+        const h = Math.min(0.66, eqLevels[i] * 0.75);
+        eqDummy.position.set(-0.93 + f * 1.9, h / 2, 0);
+        eqDummy.scale.set(0.05, h, 0.01);
+        eqDummy.updateMatrix();
+        eqBars.setMatrixAt(i, eqDummy.matrix);
+      }
+      eqBars.instanceMatrix.needsUpdate = true;
+      vuMeters.forEach((v, i) => { const h = 0.02 + (kick + snare) * 0.05 * (i ? 0.9 : 1); v.scale.y = h; v.position.y = 1.11 + h / 2; });
+      beams.forEach((b) => {
+        b.head.rotation.x = -2.35 + Math.sin(t * 0.5 + b.side) * 0.25;
+        b.head.rotation.z = b.side * 0.15 + Math.sin(t * 0.7 + b.side * 2) * 0.3;
+      });
+    }
     // security cameras pan slowly back and forth; recording light blinks
     cctvHeads.forEach((c) => {
       const sweep = reduceMotion ? 0 : Math.sin(t * 0.35 + c.phase) * 2.2;
