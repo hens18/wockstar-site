@@ -8,7 +8,12 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..900&display=swap" rel="stylesheet">
-<script type="module" src="https://cdn.jsdelivr.net/npm/@google/model-viewer@3.5.0/dist/model-viewer.min.js"></script>
+<script type="module" src="assets/vendor/model-viewer/model-viewer.min.js"></script>
+<script type="importmap">
+{"imports":{
+  "three":"./assets/vendor/three/build/three.module.min.js"
+}}
+</script>
 <style>
 :root{
   --void:#000000;
@@ -41,10 +46,13 @@ a{color:inherit}
 
 /* hero */
 .hero{position:relative;height:100svh;min-height:560px;overflow:hidden;display:flex;align-items:flex-end}
-.hero-media{position:absolute;inset:0}
-.hero-media img,.hero-media video{width:100%;height:100%;object-fit:cover;object-position:50% 35%;animation:push 18s ease-out forwards}
+.hero-media{position:absolute;inset:0;background-size:cover;background-position:50% 35%}
+#hero-3d{width:100%;height:100%;display:block;opacity:0;transition:opacity 1s ease;cursor:grab}
+#hero-3d.ready{opacity:1}
+#hero-3d.grabbing{cursor:grabbing}
+#hero-3d.hoverable{cursor:pointer}
 @keyframes push{from{transform:scale(1.12)}to{transform:scale(1)}}
-.hero::after{content:"";position:absolute;inset:0;background:linear-gradient(to top,#000 4%,rgba(0,0,0,.55) 38%,rgba(0,0,0,.15) 70%,rgba(0,0,0,.4))}
+.hero::after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(to top,#000 4%,rgba(0,0,0,.55) 38%,rgba(0,0,0,.15) 70%,rgba(0,0,0,.4))}
 .hero-copy{position:relative;z-index:2;width:100%;padding:0 clamp(18px,4vw,48px) clamp(36px,7vh,80px)}
 .wordmark{margin:0;font-weight:800;font-size:clamp(34px,7.5vw,120px);line-height:.86;letter-spacing:-.01em;text-transform:uppercase;font-variation-settings:"wdth" 125;animation:widen 2.2s cubic-bezier(.2,.7,.1,1) both}
 @keyframes widen{from{font-variation-settings:"wdth" 62;letter-spacing:.3em;opacity:0}to{font-variation-settings:"wdth" 125;letter-spacing:-.01em;opacity:1}}
@@ -58,14 +66,9 @@ a{color:inherit}
 .btn-ghost{color:var(--bone)}
 .btn-ghost:hover{background:rgba(184,140,242,.15)}
 
-/* hero hotspots */
-.hotspots{position:absolute;inset:0;z-index:2;pointer-events:none}
-.hotspot{position:absolute;transform:translate(-50%,-50%);width:34px;height:34px;border-radius:50%;border:none;background:transparent;pointer-events:auto;cursor:pointer;display:grid;place-items:center}
-.hotspot::before{content:"";width:14px;height:14px;border-radius:50%;background:var(--bone);box-shadow:0 0 0 0 rgba(239,237,243,.6);animation:hotspot-pulse 2.2s ease-out infinite}
-.hotspot:hover::before,.hotspot:focus-visible::before{background:var(--lav)}
-@keyframes hotspot-pulse{0%{box-shadow:0 0 0 0 rgba(239,237,243,.5)}70%{box-shadow:0 0 0 16px rgba(239,237,243,0)}100%{box-shadow:0 0 0 0 rgba(239,237,243,0)}}
-.hotspot .hs-label{position:absolute;bottom:calc(100% + 10px);left:50%;transform:translateX(-50%);white-space:nowrap;font-size:12px;font-weight:600;letter-spacing:.04em;color:var(--bone);background:rgba(10,9,12,.72);padding:6px 12px;border-radius:999px;opacity:0;transition:opacity .2s;pointer-events:none}
-.hotspot:hover .hs-label,.hotspot:focus-visible .hs-label{opacity:1}
+/* hero 3D scene label (hover tooltip for the currently raycast-hit garment) */
+.hero-label{position:absolute;z-index:3;transform:translate(-50%,-130%);white-space:nowrap;font-size:12px;font-weight:600;letter-spacing:.04em;color:var(--bone);background:rgba(10,9,12,.72);padding:6px 12px;border-radius:999px;opacity:0;transition:opacity .15s;pointer-events:none}
+.hero-label.show{opacity:1}
 
 /* product modal */
 .product-modal{position:fixed;inset:0;z-index:50;display:grid;place-items:center;padding:24px;background:rgba(5,4,6,.72);backdrop-filter:blur(6px)}
@@ -202,10 +205,10 @@ a{color:inherit}
 
 <main id="top">
   <section class="hero">
-    <div class="hero-media">
-      <video class="hero-video" muted loop playsinline preload="none" aria-hidden="true" tabindex="-1" poster="assets/hero-poster.jpg"><source data-src="assets/hero-loop.mp4" type="video/mp4"></video>
+    <div class="hero-media" id="hero-media" style="background-image:url('assets/hero-poster.jpg')">
+      <canvas id="hero-3d" aria-label="Interactive 3D storefront - click a garment to view details" role="img"></canvas>
+      <div class="hero-label" id="hero-label"></div>
     </div>
-    <div class="hotspots" id="hotspots"></div>
     <div class="hero-copy">
       <h1 class="wordmark">Wockstar</h1>
       <div class="hero-row">
@@ -412,35 +415,6 @@ class LoaderButton extends HTMLElement {
 }
 customElements.define("loader-button", LoaderButton);
 
-// Hero video: skip the download/play on phones, sideways phones, and reduced motion,
-// and gate live so a resize or a mid-session motion-preference flip re-decides it.
-(function(){
-  const video = document.querySelector('.hero-video');
-  if(!video) return;
-  const GATES = [
-    '(max-width: 720px)',
-    '(orientation: landscape) and (pointer: coarse) and (max-height: 560px)',
-    '(prefers-reduced-motion: reduce)'
-  ];
-  const mqls = GATES.map(q => matchMedia(q));
-  function skip(){ return mqls.some(m => m.matches); }
-  function apply(){
-    if (skip()){
-      video.pause();
-    } else if (!video.dataset.armed){
-      video.dataset.armed = '1';
-      video.querySelectorAll('source[data-src]').forEach(s => { s.src = s.dataset.src; });
-      video.load();
-      video.play().catch(()=>{});
-    } else {
-      video.play().catch(()=>{});
-    }
-  }
-  video.addEventListener('error', () => { video.style.display = 'none'; });
-  mqls.forEach(m => m.addEventListener('change', apply));
-  apply();
-})();
-
 // Edit products here. Set img to a photo path and buy to the checkout link.
 // video/poster: a short muted loop that plays on hover/tap, poster shown otherwise.
 const PIECES=[
@@ -464,13 +438,8 @@ document.getElementById('grid').innerHTML=PIECES.map(p=>`
   </article>`).join('');
 
 // Hero hotspots, product modal (3D viewer + add to cart), and cart drawer.
+window.PIECES = PIECES;
 (function(){
-  const hotspotLayer = document.getElementById('hotspots');
-  hotspotLayer.innerHTML = PIECES.map(p => `
-    <button class="hotspot" type="button" data-piece="${p.id}" style="left:${p.hx}%;top:${p.hy}%" aria-label="View ${p.name}">
-      <span class="hs-label">${p.name}</span>
-    </button>`).join('');
-
   const modal = document.getElementById('product-modal');
   const pmViewer = document.getElementById('pm-viewer');
   const pmCat = document.getElementById('pm-cat');
@@ -492,6 +461,7 @@ document.getElementById('grid').innerHTML=PIECES.map(p=>`
     modal.hidden = false;
     document.body.style.overflow = 'hidden';
   }
+  window.openProductModal = openModal;
   function closeModal(){
     modal.hidden = true;
     pmViewer.innerHTML = '';
@@ -653,6 +623,227 @@ document.getElementById('alert-form').addEventListener('submit',e=>{
   let t;
   window.addEventListener('resize',()=>{clearTimeout(t);t=setTimeout(fit,120)});
   if(document.fonts&&document.fonts.ready)document.fonts.ready.then(fit);
+})();
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from './assets/vendor/three/loaders/GLTFLoader.js';
+import { OrbitControls } from './assets/vendor/three/controls/OrbitControls.js';
+
+(async () => {
+  const canvas = document.getElementById('hero-3d');
+  const heroMedia = document.getElementById('hero-media');
+  const label = document.getElementById('hero-label');
+  if (!canvas || !window.PIECES || !window.openProductModal) return;
+
+  let gl;
+  try { gl = canvas.getContext('webgl2') || canvas.getContext('webgl'); } catch (e) { gl = null; }
+  if (!gl) return; // no WebGL: the CSS poster background on #hero-media stays visible, nothing else runs
+
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x0a0910, 0.045);
+
+  const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+  const startPos = new THREE.Vector3(0, 5.5, 16);
+  const endPos = new THREE.Vector3(0, 1.55, 6.2);
+  const target = new THREE.Vector3(0, 1, 0);
+  camera.position.copy(reduceMotion ? endPos : startPos);
+  camera.lookAt(target);
+
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  function resize(){
+    const w = heroMedia.clientWidth, h = heroMedia.clientHeight;
+    if (!w || !h) return;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+  resize();
+  addEventListener('resize', resize);
+
+  scene.add(new THREE.HemisphereLight(0x6a5a8a, 0x0a0910, 0.55));
+  const key = new THREE.PointLight(0xb88cf2, 30, 20, 2);
+  key.position.set(0, 6, 2);
+  scene.add(key);
+  const rim = new THREE.PointLight(0x5a3690, 18, 20, 2);
+  rim.position.set(0, 3, -6);
+  scene.add(rim);
+
+  const floor = new THREE.Mesh(
+    new THREE.CircleGeometry(14, 48),
+    new THREE.MeshStandardMaterial({ color: 0x17151b, roughness: 0.25, metalness: 0.4 })
+  );
+  floor.rotation.x = -Math.PI / 2;
+  scene.add(floor);
+
+  const wall = new THREE.Mesh(
+    new THREE.PlaneGeometry(26, 10),
+    new THREE.MeshStandardMaterial({ color: 0x2a2531, roughness: 0.9 })
+  );
+  wall.position.set(0, 5, -8);
+  scene.add(wall);
+  const crestImg = document.querySelector('.crest');
+  if (crestImg && crestImg.src) {
+    new THREE.TextureLoader().load(crestImg.src, (tex) => {
+      tex.colorSpace = THREE.SRGBColorSpace;
+      const crestPlane = new THREE.Mesh(
+        new THREE.PlaneGeometry(5, 5),
+        new THREE.MeshBasicMaterial({ map: tex, transparent: true })
+      );
+      crestPlane.position.set(0, 5.2, -7.9);
+      scene.add(crestPlane);
+    });
+  }
+
+  const N = window.PIECES.length;
+  const radius = 5.2;
+  const spread = Math.PI * 0.62;
+  const garmentRoots = [];
+
+  window.PIECES.forEach((p, i) => {
+    const t = N === 1 ? 0.5 : i / (N - 1);
+    const angle = -spread / 2 + t * spread;
+    const x = Math.sin(angle) * radius;
+    const z = -Math.cos(angle) * radius + radius * 0.35;
+
+    const pedestal = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.55, 0.65, 0.9, 24),
+      new THREE.MeshStandardMaterial({ color: 0x0c0b0e, roughness: 0.35, metalness: 0.5 })
+    );
+    pedestal.position.set(x, 0.45, z);
+    scene.add(pedestal);
+
+    const spot = new THREE.SpotLight(0xefedf3, 22, 8, Math.PI / 7, 0.4, 1.4);
+    spot.position.set(x, 3.6, z + 0.6);
+    spot.target.position.set(x, 0.9, z);
+    scene.add(spot, spot.target);
+
+    const root = new THREE.Group();
+    root.position.set(x, 0.9, z);
+    scene.add(root);
+    garmentRoots.push({ id: p.id, root, glb: p.glb, mesh: null });
+  });
+
+  const loader = new GLTFLoader();
+  await Promise.all(garmentRoots.map(g => new Promise((resolve) => {
+    loader.load(g.glb, (gltf) => {
+      const obj = gltf.scene;
+      obj.traverse(n => { if (n.isMesh) n.userData.pieceId = g.id; });
+      const box = new THREE.Box3().setFromObject(obj);
+      const size = new THREE.Vector3();
+      box.getSize(size);
+      const maxDim = Math.max(size.x, size.y, size.z) || 1;
+      const scale = 0.85 / maxDim;
+      obj.scale.setScalar(scale);
+      const center = new THREE.Vector3();
+      box.getCenter(center);
+      obj.position.sub(center.multiplyScalar(scale));
+      obj.position.y += 0.55;
+      g.root.add(obj);
+      g.mesh = obj;
+      resolve();
+    }, undefined, () => resolve());
+  })));
+
+  canvas.classList.add('ready');
+
+  function easeOutCubic(x){ return 1 - Math.pow(1 - x, 3); }
+  let panT = reduceMotion ? 1 : 0;
+  let panStart = null;
+  const panDuration = 2600;
+  let controls;
+  function initControls(){
+    controls = new OrbitControls(camera, canvas);
+    controls.target.copy(target);
+    controls.enablePan = false;
+    controls.minDistance = 3.5;
+    controls.maxDistance = 9;
+    controls.minPolarAngle = Math.PI * 0.28;
+    controls.maxPolarAngle = Math.PI * 0.52;
+    controls.minAzimuthAngle = -Math.PI * 0.42;
+    controls.maxAzimuthAngle = Math.PI * 0.42;
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+    controls.update();
+  }
+  if (reduceMotion) initControls();
+
+  const raycaster = new THREE.Raycaster();
+  const pointerNDC = new THREE.Vector2();
+  let hovered = null;
+  let downPos = null;
+
+  function updatePointer(e){
+    const rect = canvas.getBoundingClientRect();
+    pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  }
+  function pickPieceId(){
+    raycaster.setFromCamera(pointerNDC, camera);
+    const meshes = garmentRoots.filter(g => g.mesh).map(g => g.mesh);
+    const hits = raycaster.intersectObjects(meshes, true);
+    if (!hits.length) return null;
+    let obj = hits[0].object;
+    while (obj && !obj.userData.pieceId) obj = obj.parent;
+    return obj ? obj.userData.pieceId : null;
+  }
+
+  canvas.addEventListener('pointermove', (e) => {
+    updatePointer(e);
+    const id = panT >= 1 ? pickPieceId() : null;
+    if (id !== hovered) {
+      hovered = id;
+      canvas.classList.toggle('hoverable', !!id);
+      if (id) {
+        const p = window.PIECES.find(x => x.id === id);
+        label.textContent = p ? p.name : '';
+        label.classList.add('show');
+      } else {
+        label.classList.remove('show');
+      }
+    }
+    if (id) {
+      const rect = canvas.getBoundingClientRect();
+      label.style.left = (e.clientX - rect.left) + 'px';
+      label.style.top = (e.clientY - rect.top) + 'px';
+    }
+  });
+  canvas.addEventListener('pointerdown', (e) => { downPos = { x: e.clientX, y: e.clientY }; canvas.classList.add('grabbing'); });
+  canvas.addEventListener('pointerup', (e) => {
+    canvas.classList.remove('grabbing');
+    if (!downPos) return;
+    const moved = Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y);
+    downPos = null;
+    if (moved > 6 || panT < 1) return;
+    updatePointer(e);
+    const id = pickPieceId();
+    if (id) window.openProductModal(id);
+  });
+  canvas.addEventListener('pointerleave', () => { label.classList.remove('show'); hovered = null; canvas.classList.remove('hoverable'); });
+
+  function animate(now){
+    requestAnimationFrame(animate);
+    if (panT < 1) {
+      if (panStart === null) panStart = now;
+      const raw = Math.min(1, (now - panStart) / panDuration);
+      panT = raw;
+      camera.position.lerpVectors(startPos, endPos, easeOutCubic(raw));
+      camera.lookAt(target);
+      if (raw >= 1 && !controls) initControls();
+    } else if (controls) {
+      controls.update();
+    }
+    if (!reduceMotion) {
+      garmentRoots.forEach((g, i) => { if (g.mesh) g.mesh.rotation.y += 0.0035 + i * 0.0002; });
+    }
+    renderer.render(scene, camera);
+  }
+  requestAnimationFrame(animate);
 })();
 </script>
 </body>
