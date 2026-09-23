@@ -71,6 +71,8 @@ a{color:inherit}
 .btn-main:hover{background:var(--bone);border-color:var(--bone)}
 .btn-ghost{color:var(--bone)}
 .btn-ghost:hover{background:rgba(184,140,242,.15)}
+.btn-pulse{animation:btn-pulse 1.8s ease-in-out infinite}
+@keyframes btn-pulse{0%,100%{box-shadow:0 0 0 0 rgba(184,140,242,.55)}50%{box-shadow:0 0 0 14px rgba(184,140,242,0)}}
 
 /* hero 3D scene label (hover tooltip for the currently raycast-hit garment) */
 .hero-label{position:absolute;left:50%;top:50%;z-index:3;transform:translate(-50%,-260%);white-space:nowrap;font-size:12px;font-weight:600;letter-spacing:.04em;color:var(--bone);background:rgba(10,9,12,.72);padding:6px 12px;border-radius:999px;opacity:0;transition:opacity .15s;pointer-events:none}
@@ -245,8 +247,8 @@ a{color:inherit}
       <div class="hero-row">
         <p class="tagline">Clothing for a higher frequency.</p>
         <div class="actions">
-          <a class="btn btn-main" href="#drop">Shop drop 01</a>
-          <a class="btn btn-ghost" href="#alerts">Get drop alerts</a>
+          <a class="btn btn-main" href="#drop" id="hero-shop-btn">Shop drop 01</a>
+          <a class="btn btn-ghost" href="#alerts" id="hero-alerts-btn">Get drop alerts</a>
         </div>
       </div>
     </div>
@@ -780,12 +782,27 @@ import { GLTFLoader } from './assets/vendor/three/loaders/GLTFLoader.js';
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const isTouch = matchMedia('(pointer: coarse)').matches;
 
+  // WebGL confirmed working: this is going to be a 3D store, so say so immediately -
+  // relabel the hero's own CTA buttons rather than bolt on a redundant "enter" prompt.
+  const shopBtn = document.getElementById('hero-shop-btn');
+  const alertsBtn = document.getElementById('hero-alerts-btn');
+  shopBtn.textContent = isTouch ? 'Tap to walk in →' : 'Click to walk in →';
+  shopBtn.classList.add('btn-pulse');
+  alertsBtn.textContent = 'Get drop alerts';
+  shopBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    shopBtn.classList.remove('btn-pulse');
+    if (panT < 1) { panT = 1; camera.position.copy(endPos); camera.lookAt(lookTarget); }
+    if (!isTouch) requestLock(); else beginWalking();
+  });
+  alertsBtn.addEventListener('click', (e) => { e.preventDefault(); window.openSignupModal(); });
+
   // room bounds (metres) - matches the Blender-drafted shell's proportions
   const ROOM = { minX: -4.4, maxX: 4.4, minZ: -12.4, maxZ: 3.0, wallZ: -13, entranceZ: 3.4, width: 10, height: 4 };
   const EYE_Y = 1.65;
 
   const scene = new THREE.Scene();
-  scene.fog = new THREE.FogExp2(0x0a0910, 0.05);
+  scene.fog = new THREE.FogExp2(0x160b2e, 0.038);
 
   const camera = new THREE.PerspectiveCamera(52, 1, 0.1, 100);
   camera.rotation.order = 'YXZ';
@@ -808,16 +825,22 @@ import { GLTFLoader } from './assets/vendor/three/loaders/GLTFLoader.js';
   resize();
   addEventListener('resize', resize);
 
-  scene.add(new THREE.HemisphereLight(0x6a5a8a, 0x0a0910, 0.5));
-  const key = new THREE.PointLight(0xb88cf2, 26, 22, 2);
+  scene.add(new THREE.HemisphereLight(0xb388ff, 0x2a1145, 0.85));
+  const key = new THREE.PointLight(0xc79bff, 42, 24, 2);
   key.position.set(0, 3.6, -2);
   scene.add(key);
-  const rim = new THREE.PointLight(0x5a3690, 20, 22, 2);
+  const rim = new THREE.PointLight(0x8a4fff, 34, 24, 2);
   rim.position.set(0, 3.2, ROOM.wallZ + 2);
   scene.add(rim);
+  const accent1 = new THREE.PointLight(0xff3fb0, 20, 14, 2);
+  accent1.position.set(ROOM.minX + 1, 2.4, -6);
+  scene.add(accent1);
+  const accent2 = new THREE.PointLight(0x3fd0ff, 18, 14, 2);
+  accent2.position.set(ROOM.maxX - 1, 2.4, -6);
+  scene.add(accent2);
 
-  const floorMat = new THREE.MeshStandardMaterial({ color: 0x17151b, roughness: 0.25, metalness: 0.4 });
-  const wallMat = new THREE.MeshStandardMaterial({ color: 0x241f2c, roughness: 0.9 });
+  const floorMat = new THREE.MeshStandardMaterial({ color: 0x2a1a45, roughness: 0.2, metalness: 0.55 });
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0x3a2359, roughness: 0.7, metalness: 0.1 });
 
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(ROOM.width, ROOM.entranceZ - ROOM.wallZ), floorMat);
   floor.rotation.x = -Math.PI / 2;
@@ -916,7 +939,7 @@ import { GLTFLoader } from './assets/vendor/three/loaders/GLTFLoader.js';
     sign.position.set(x, 1.55, z);
     scene.add(sign);
 
-    const glow = new THREE.PointLight(color, 8, 4, 2);
+    const glow = new THREE.PointLight(color, 18, 5, 2);
     glow.position.set(x, 1.6, z);
     scene.add(glow);
 
@@ -954,7 +977,8 @@ import { GLTFLoader } from './assets/vendor/three/loaders/GLTFLoader.js';
     pedestal.position.set(x, 0.45, z);
     scene.add(pedestal);
 
-    const spot = new THREE.SpotLight(0xefedf3, 20, 7, Math.PI / 7, 0.4, 1.4);
+    const spotColor = side > 0 ? 0xffe8ff : 0xe8f4ff;
+    const spot = new THREE.SpotLight(spotColor, 32, 7, Math.PI / 7, 0.4, 1.4);
     spot.position.set(x, 3.4, z);
     spot.target.position.set(x, 0.9, z);
     scene.add(spot, spot.target);
@@ -983,7 +1007,7 @@ import { GLTFLoader } from './assets/vendor/three/loaders/GLTFLoader.js';
     hitbox.userData.pieceId = p.id;
     root.add(hitbox);
 
-    garmentRoots.push({ id: p.id, root, glb: p.glb, mesh: null, hitbox });
+    garmentRoots.push({ id: p.id, root, glb: p.glb, mesh: null, hitbox, baseY: 0.9, lift: 0 });
     interactables.push({ kind: 'product', id: p.id, hitbox });
   });
 
@@ -1023,6 +1047,7 @@ import { GLTFLoader } from './assets/vendor/three/loaders/GLTFLoader.js';
     walking = true;
     yaw = camera.rotation.y;
     pitch = camera.rotation.x;
+    shopBtn.classList.remove('btn-pulse');
     canvas.classList.add('walking');
     crosshair.classList.add('show');
     hint.textContent = isTouch ? 'Left side to walk · right side to look · tap View to select' : 'WASD to walk · mouse to look · click an item to select';
@@ -1121,7 +1146,7 @@ import { GLTFLoader } from './assets/vendor/three/loaders/GLTFLoader.js';
   }
 
   canvas.addEventListener('click', () => {
-    if (panT < 1) return;
+    if (panT < 1) { panT = 1; camera.position.copy(endPos); camera.lookAt(lookTarget); shopBtn.classList.remove('btn-pulse'); }
     if (!isTouch && document.pointerLockElement !== canvas) { requestLock(); return; }
     tryInteract();
   });
@@ -1152,11 +1177,11 @@ import { GLTFLoader } from './assets/vendor/three/loaders/GLTFLoader.js';
       camera.rotation.x = pitch;
 
       let mx = 0, mz = 0;
-      if (keys['KeyW'] || keys['ArrowUp']) mz -= 1;
-      if (keys['KeyS'] || keys['ArrowDown']) mz += 1;
+      if (keys['KeyW'] || keys['ArrowUp']) mz += 1;
+      if (keys['KeyS'] || keys['ArrowDown']) mz -= 1;
       if (keys['KeyA'] || keys['ArrowLeft']) mx -= 1;
       if (keys['KeyD'] || keys['ArrowRight']) mx += 1;
-      if (touchState.moveVec.x || touchState.moveVec.y) { mx = touchState.moveVec.x; mz = touchState.moveVec.y; }
+      if (touchState.moveVec.x || touchState.moveVec.y) { mx = touchState.moveVec.x; mz = -touchState.moveVec.y; }
 
       const len = Math.hypot(mx, mz);
       if (len > 0.001) {
@@ -1188,6 +1213,14 @@ import { GLTFLoader } from './assets/vendor/three/loaders/GLTFLoader.js';
     if (!reduceMotion) {
       garmentRoots.forEach((g, i) => { if (g.mesh) g.mesh.rotation.y += 0.006 + i * 0.0003; });
     }
+    // hover feedback: the aimed-at garment lifts slightly and grows, so the room reacts to you
+    garmentRoots.forEach((g) => {
+      const targetLift = (hovered && hovered.kind === 'product' && hovered.id === g.id) ? 1 : 0;
+      g.lift += (targetLift - g.lift) * Math.min(1, dt * 8);
+      g.root.position.y = g.baseY + g.lift * 0.14;
+      const s = 1 + g.lift * 0.1;
+      g.root.scale.setScalar(s);
+    });
     renderer.render(scene, camera);
   }
   requestAnimationFrame(animate);
