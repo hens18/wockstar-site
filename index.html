@@ -14,6 +14,7 @@
   "three":"./assets/vendor/three/build/three.module.min.js"
 }}
 </script>
+<script>document.documentElement.classList.add('js')</script>
 <style>
 :root{
   --void:#000000;
@@ -23,6 +24,8 @@
   --lav:#b88cf2;
   --lav-deep:#5a3690;
   --muted:#8d8894;
+  --line:#2b2830;
+  --err:#ff9db0;
   color-scheme:dark;
   box-sizing:border-box;
   padding-top:env(safe-area-inset-top,0px);
@@ -31,17 +34,23 @@
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--void:#000000;--bone:#efedf3}}
 :root[data-theme="dark"]{--void:#000000;--bone:#efedf3}
 *,*::before,*::after{box-sizing:inherit}
-html{scroll-padding-top:env(safe-area-inset-top,0px);scroll-behavior:smooth;overflow-x:hidden}
-body{margin:0;overflow-x:hidden;background:var(--void);color:var(--bone);font-family:"Archivo",Helvetica,Arial,sans-serif;font-variation-settings:"wdth" 100;font-size:17px;line-height:1.55;-webkit-font-smoothing:antialiased}
+html{scroll-padding-top:env(safe-area-inset-top,0px);scroll-behavior:smooth;scrollbar-color:#3d2c55 var(--void);accent-color:var(--lav);caret-color:var(--lav)}
+body{margin:0;background:var(--void);color:var(--bone);font-family:"Archivo",Helvetica,Arial,sans-serif;font-variation-settings:"wdth" 100;font-size:17px;line-height:1.55;-webkit-font-smoothing:antialiased}
 img{max-width:100%;display:block}
 a{color:inherit}
 :focus-visible{outline:2px solid var(--lav);outline-offset:3px}
+::selection{background:var(--lav);color:#000}
+a{text-underline-offset:.2em}
+.sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.ico{display:inline-block;width:1em;height:1em;vertical-align:-.14em;flex-shrink:0}
+.price,.pm-price,.cart-total,.ci-price,.fc-price{font-variant-numeric:tabular-nums}
 
 /* nav */
 .nav{position:fixed;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;justify-content:space-between;padding:calc(14px + env(safe-area-inset-top,0px)) clamp(18px,4vw,48px) 14px;background:linear-gradient(to bottom,rgba(0,0,0,.75),rgba(0,0,0,0))}
 .nav img{width:52px;height:52px;object-fit:cover;border-radius:50%}
 .nav ul{display:flex;gap:clamp(16px,3vw,36px);list-style:none;margin:0;padding:0}
 .nav a{text-decoration:none;font-size:15px;font-weight:500;color:var(--chrome)}
+.nav ul a,.nav .cart-btn{padding:12px 6px;margin:-12px -6px}
 .nav a:hover{color:var(--bone)}
 
 /* hero */
@@ -63,7 +72,8 @@ a{color:inherit}
 .btn[hidden]{display:none}
 .btn-main{background:var(--lav);color:#000}
 .btn-main:hover{background:var(--bone);border-color:var(--bone)}
-.btn-ghost{color:var(--bone)}
+.btn-ghost{color:var(--bone);background:transparent}
+button.btn{font-family:inherit;cursor:pointer}
 .btn-ghost:hover{background:rgba(184,140,242,.15)}
 .btn-pulse{animation:btn-pulse 1.8s ease-in-out infinite}
 @keyframes btn-pulse{0%,100%{box-shadow:0 0 0 0 rgba(184,140,242,.55)}50%{box-shadow:0 0 0 14px rgba(184,140,242,0)}}
@@ -93,12 +103,13 @@ a{color:inherit}
 .pm-viewer{background:radial-gradient(120% 90% at 50% 30%,#2a2531,#0c0b0e 70%);min-height:340px;border-radius:14px 0 0 14px;overflow:hidden}
 .pm-viewer model-viewer{width:100%;height:100%;min-height:340px}
 .pm-body{padding:clamp(24px,4vw,40px);display:flex;flex-direction:column;gap:14px}
-.pm-cat{font-size:12px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.pm-cat{font-size:15px;color:var(--muted)}
+.pm-line{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
 .pm-name{margin:0;font-size:clamp(24px,2.6vw,32px);font-weight:800;line-height:1.08;font-variation-settings:"wdth" 112}
 .pm-price{font-size:22px;font-weight:600;color:var(--lav)}
 .pm-desc{margin:0;color:var(--chrome);font-size:15px;line-height:1.5}
 .pm-actions{display:flex;gap:12px;margin-top:8px;flex-wrap:wrap}
-.pm-close{position:absolute;top:14px;right:14px;width:36px;height:36px;border-radius:50%;border:1px solid #3a3641;background:rgba(0,0,0,.4);color:var(--bone);font-size:18px;line-height:1;cursor:pointer;display:grid;place-items:center;z-index:2}
+.pm-close{position:absolute;top:12px;right:12px;width:44px;height:44px;border-radius:50%;border:1px solid #3a3641;background:rgba(0,0,0,.4);color:var(--bone);font-size:20px;line-height:1;cursor:pointer;display:grid;place-items:center;z-index:2}
 .pm-close:hover{background:rgba(0,0,0,.65)}
 .pm-added{color:var(--lav);font-size:14px;min-height:1.4em}
 @media (max-width:760px){.pm-panel{grid-template-columns:1fr}.pm-viewer{border-radius:14px 14px 0 0}}
@@ -128,9 +139,10 @@ a{color:inherit}
 .cart-item .ci-info{flex:1;min-width:0}
 .cart-item .ci-info .ci-name{font-size:14px;font-weight:600}
 .cart-item .ci-info .ci-price{font-size:13px;color:var(--muted)}
-.cart-item .ci-remove{background:none;border:none;color:var(--muted);font-size:13px;text-decoration:underline;cursor:pointer;padding:0}
+.cart-item .ci-remove{background:none;border:none;color:var(--muted);font-size:13px;text-decoration:underline;cursor:pointer;padding:12px 4px;margin:-12px -4px}
 .cart-item .ci-remove:hover{color:var(--bone)}
-.cart-empty{color:var(--muted);padding:24px 0;font-size:14px}
+.cart-empty{color:var(--muted);padding:24px 0;font-size:14px;display:flex;flex-direction:column;align-items:flex-start;gap:14px}
+.cart-empty .btn{padding:11px 20px;font-size:14px}
 .cart-drawer-foot{padding:18px clamp(18px,4vw,28px);border-top:1px solid #2b2830;display:flex;align-items:center;justify-content:space-between}
 .cart-total{font-weight:700}
 .cart-scrim{position:fixed;inset:0;z-index:54;background:rgba(5,4,6,.6);opacity:0;pointer-events:none;transition:opacity .3s}
@@ -142,26 +154,67 @@ a{color:inherit}
 .drop-head h2{margin:0;font-size:clamp(34px,5vw,64px);font-weight:800;line-height:1;font-variation-settings:"wdth" 115}
 .drop-head p{margin:0;color:var(--muted)}
 .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:clamp(14px,2vw,28px)}
-.piece{display:flex;flex-direction:column;opacity:0;transform:translateX(-56px);transition:opacity .8s cubic-bezier(.16,1,.3,1),transform .8s cubic-bezier(.16,1,.3,1)}
-.piece.is-visible{opacity:1;transform:translateX(0)}
-.piece.is-visible:nth-child(3n+1){transition-delay:.05s}
-.piece.is-visible:nth-child(3n+2){transition-delay:.18s}
-.piece.is-visible:nth-child(3n+3){transition-delay:.31s}
-.shot{position:relative;aspect-ratio:4/5;border-radius:6px;overflow:hidden;background:radial-gradient(120% 90% at 50% 20%,#2a2531,var(--stone) 60%,#050406)}
+.piece{display:flex;flex-direction:column}
+.js .piece>*{clip-path:inset(-12% 100% -12% 0);transform:translateX(-14px);transition:clip-path 1.1s cubic-bezier(.16,1,.3,1),transform 1.1s cubic-bezier(.16,1,.3,1)}
+.js .piece.is-visible>*{clip-path:inset(-12% -12% -12% -12%);transform:none}
+.piece.is-visible:nth-child(3n+1)>*{transition-delay:.05s}
+.piece.is-visible:nth-child(3n+2)>*{transition-delay:.18s}
+.piece.is-visible:nth-child(3n+3)>*{transition-delay:.31s}
+.shot{position:absolute;inset:0;display:block;overflow:hidden;background:radial-gradient(120% 90% at 50% 20%,#2a2531,var(--stone) 60%,#050406)}
 .shot img,.shot video{width:100%;height:100%;object-fit:cover}
 .shot .ph{position:absolute;inset:0;display:grid;place-items:center}
 .shot .ph img{width:46%;height:auto;opacity:.22;filter:grayscale(.4)}
 .shot .ph span{position:absolute;bottom:14px;left:16px;font-size:13px;color:var(--muted)}
-.meta{display:grid;grid-template-columns:1fr auto;gap:2px 12px;padding:16px 2px 0}
+.meta{display:grid;grid-template-columns:1fr auto;gap:4px 12px;padding:18px 2px 0}
 .meta .cat{grid-column:1/-1;font-size:13px;color:var(--muted)}
 .meta h3{margin:0;font-size:19px;font-weight:600;line-height:1.25}
 .meta .price{font-size:19px;font-weight:600;color:var(--lav)}
 .buy{margin-top:14px;align-self:flex-start;padding:11px 22px;font-size:15px}
 
+/* flip cards: vanilla port of React Bits' FlipCard. Front is the product shot, back is the buy panel */
+.flip-card{--fc-radius:6px;--fc-shadow:#000;--fc-shadow-o:.55;--fc-glare:.22;position:relative;display:block;width:100%;aspect-ratio:4/5;border-radius:var(--fc-radius);user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;touch-action:pan-y;container-type:inline-size}
+.flip-card[data-axis='x']{touch-action:pan-x}
+.flip-card[data-draggable]{cursor:grab}
+.flip-card[data-dragging]{cursor:grabbing}
+.flip-card__shadow{position:absolute;inset:12% 9% -5%;border-radius:var(--fc-radius);background:color-mix(in srgb,var(--fc-shadow) calc(var(--fc-shadow-o)*100%),transparent);filter:blur(22px);pointer-events:none}
+.flip-card__rotor{position:absolute;inset:0;transform-style:preserve-3d}
+.flip-card__face{position:absolute;inset:0;overflow:hidden;border-radius:var(--fc-radius);background:var(--stone);color:var(--bone);backface-visibility:hidden;-webkit-backface-visibility:hidden}
+.flip-card__face img,.flip-card__face video{-webkit-user-drag:none}
+.flip-card__face--back{transform:rotateY(180deg);border:1px solid var(--line);background:linear-gradient(to top,var(--stone) 42%,rgba(23,21,27,.62) 72%,rgba(23,21,27,.35)),var(--fc-poster,none) 50% 30%/cover no-repeat,var(--stone)}
+.flip-card[data-axis='x'] .flip-card__face--back{transform:rotateX(180deg)}
+.flip-card__glare{position:absolute;inset:0;background:radial-gradient(circle farthest-side at var(--fc-gx,50%) var(--fc-gy,50%),rgba(255,255,255,var(--fc-glare)) 0%,rgba(255,255,255,calc(var(--fc-glare)*.76)) 12%,rgba(255,255,255,calc(var(--fc-glare)*.5)) 26%,rgba(255,255,255,calc(var(--fc-glare)*.28)) 42%,rgba(255,255,255,calc(var(--fc-glare)*.12)) 60%,rgba(255,255,255,calc(var(--fc-glare)*.04)) 78%,rgba(255,255,255,0) 100%);opacity:var(--fc-sheen,0);pointer-events:none}
+.flip-card[data-fade] .flip-card__face{transform:none;opacity:0;backface-visibility:visible;-webkit-backface-visibility:visible;transition:opacity .2s ease}
+.flip-card[data-fade='front'] .flip-card__face--front,.flip-card[data-fade='back'] .flip-card__face--back{opacity:1}
+.fc-front{position:absolute;inset:0;display:block;width:100%;height:100%;padding:0;margin:0;border:0;background:none;color:inherit;font:inherit;text-align:left;cursor:inherit;border-radius:var(--fc-radius)}
+.fc-front:focus-visible{outline-offset:-3px}
+.fc-hint{position:absolute;left:12px;bottom:12px;display:inline-flex;align-items:center;gap:7px;padding:8px 12px;border-radius:999px;background:rgba(10,9,12,.66);color:var(--bone);font-size:13px;font-weight:600;line-height:1;pointer-events:none;transition:background .2s}
+.flip-card:hover .fc-hint{background:rgba(90,54,144,.85)}
+.fc-back{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:flex-end;gap:clamp(6px,2.6cqi,12px);padding:clamp(14px,7cqi,28px)}
+.fc-unflip{position:absolute;top:10px;right:10px;width:44px;height:44px;display:grid;place-items:center;border-radius:50%;border:1px solid #3a3641;background:rgba(0,0,0,.4);color:var(--bone);font-size:18px;cursor:pointer}
+.fc-unflip:hover{background:rgba(0,0,0,.65)}
+.fc-name{margin:0;font-size:clamp(18px,8.4cqi,32px);font-weight:800;line-height:1.04;font-variation-settings:"wdth" 112;text-wrap:balance}
+.fc-sub{margin:0;color:var(--chrome);font-size:clamp(14px,4.6cqi,16px)}
+.fc-price{color:var(--lav);font-weight:600}
+.fc-desc{margin:0;color:var(--chrome);font-size:clamp(13px,4.2cqi,15px);line-height:1.45;max-width:34ch}
+.fc-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+.fc-actions .btn{padding:12px 18px;font-size:14px}
+.fc-added{margin:0;min-height:1.3em;font-size:13px;color:var(--lav)}
+.fc-3d{display:inline-flex;align-items:center;gap:8px}
+@container (max-width:250px){
+  .fc-desc,.fc-added:empty{display:none}
+  .fc-name{font-size:17px}
+  .fc-actions{flex-wrap:nowrap}
+  .fc-actions .btn{padding:11px 12px;font-size:13px}
+  .fc-actions .btn-main{flex:1;text-align:center;white-space:nowrap;padding:11px 6px;font-size:12.5px}
+  .fc-actions .fc-3d{flex:none;width:44px;height:44px;padding:0;justify-content:center;font-size:18px}
+  .fc-3d-label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  .fc-hint{left:8px;bottom:8px;padding:7px 10px;font-size:12px}
+}
+
 /* manifesto */
 .manifesto{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:center;gap:clamp(24px,5vw,80px);padding:clamp(80px,12vw,160px) clamp(18px,4vw,48px);max-width:1440px;margin:0 auto;overflow:hidden}
-.manifesto>*{opacity:0;transform:translateX(-64px);transition:opacity .9s cubic-bezier(.16,1,.3,1),transform .9s cubic-bezier(.16,1,.3,1)}
-.manifesto.is-visible>*{opacity:1;transform:translateX(0)}
+.js .manifesto>*{clip-path:inset(-10% 100% -10% 0);transition:clip-path 1.3s cubic-bezier(.16,1,.3,1)}
+.js .manifesto.is-visible>*{clip-path:inset(-20% -20% -20% -20%)}
 .manifesto.is-visible>*:nth-child(1){transition-delay:.05s}
 .manifesto.is-visible>*:nth-child(2){transition-delay:.22s}
 .crest{width:100%;max-width:560px;justify-self:center;filter:drop-shadow(0 0 60px rgba(184,140,242,.28))}
@@ -176,8 +229,10 @@ a{color:inherit}
 .alerts input{flex:1 1 220px;min-width:0;padding:15px 20px;border-radius:999px;border:1px solid #3a3641;background:#0c0b0e;color:var(--bone);font:inherit;font-size:16px}
 .alerts input::placeholder{color:var(--muted)}
 .alerts .note{grid-column:1/-1;margin:0;color:var(--lav);min-height:1.5em}
+.alerts .note.is-error,.info-panel .note.is-error{color:var(--err)}
+.alerts input[aria-invalid=true]{border-color:var(--err)}
 
-.site-footer{position:relative;overflow:hidden;border-top:1px solid #1d1b21;min-height:100svh;display:flex;flex-direction:column;background:linear-gradient(to bottom,var(--void) 0%,var(--void) 10%,#241833 38%,#2e1c42 100%)}
+.site-footer{--muted:#b3a9c6;position:relative;overflow:hidden;border-top:1px solid #1d1b21;min-height:100svh;display:flex;flex-direction:column;background:linear-gradient(to bottom,var(--void) 0%,var(--void) 10%,#241833 38%,#2e1c42 100%)}
 .footer-top{position:relative;z-index:2;display:flex;flex-wrap:wrap;justify-content:space-between;gap:40px;padding:clamp(36px,5vw,64px) clamp(18px,4vw,48px) clamp(28px,4vw,48px)}
 .footer-col{display:flex;flex-direction:column;gap:12px;min-width:120px}
 .footer-col h3{margin:0 0 2px;font-size:12px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
@@ -236,7 +291,7 @@ a{color:inherit}
       <div class="hero-label" id="hero-label"></div>
       <div class="hero-crosshair" id="hero-crosshair"></div>
       <div class="hero-hint" id="hero-hint"></div>
-      <button class="skip-shop" id="skip-shop" type="button">Skip to the clothes &darr;</button>
+      <button class="skip-shop" id="skip-shop" type="button">Skip to the clothes <svg class="ico" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M6 13l6 6 6-6"/></svg></button>
       <button class="hero-exit" id="hero-exit" type="button">Exit store</button>
       <div class="hero-joystick" id="hero-joystick"><div class="knob" id="hero-joystick-knob"></div></div>
       <button class="hero-interact" id="hero-interact" type="button" aria-label="View item">View</button>
@@ -272,8 +327,8 @@ a{color:inherit}
   <section class="alerts" id="alerts">
     <h2>Hear about the next drop first.</h2>
     <form id="alert-form" novalidate>
-      <label for="email" class="sr" style="position:absolute;left:-9999px">Email</label>
-      <input id="email" type="email" placeholder="Your email" autocomplete="email" required>
+      <label for="email" class="sr-only">Email</label>
+      <input id="email" type="email" placeholder="Your email" autocomplete="email" required aria-describedby="note">
       <button class="btn btn-main" type="submit" id="alert-submit">Join the list</button>
       <loader-button id="alert-syncing" label="Syncing" rings="5" hidden></loader-button>
     </form>
@@ -283,12 +338,11 @@ a{color:inherit}
 
 <div class="product-modal" id="product-modal" hidden role="dialog" aria-modal="true" aria-labelledby="pm-name">
   <div class="pm-panel">
-    <button class="pm-close" id="pm-close" aria-label="Close">&times;</button>
+    <button class="pm-close" id="pm-close" aria-label="Close"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     <div class="pm-viewer" id="pm-viewer"></div>
     <div class="pm-body">
-      <span class="pm-cat" id="pm-cat"></span>
       <h3 class="pm-name" id="pm-name"></h3>
-      <span class="pm-price" id="pm-price"></span>
+      <div class="pm-line"><span class="pm-price" id="pm-price"></span><span class="pm-cat" id="pm-cat"></span></div>
       <p class="pm-desc">Cut in small runs, printed by hand. Drag to spin the piece before you add it.</p>
       <div class="pm-actions">
         <button class="btn btn-main" id="pm-add">Add to cart</button>
@@ -302,7 +356,7 @@ a{color:inherit}
 <aside class="cart-drawer" id="cart-drawer" aria-label="Cart">
   <div class="cart-drawer-head">
     <h3>Your cart</h3>
-    <button class="pm-close" id="cart-close" aria-label="Close cart" style="position:static">&times;</button>
+    <button class="pm-close" id="cart-close" aria-label="Close cart" style="position:static"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
   </div>
   <div class="cart-items" id="cart-items"></div>
   <div class="cart-drawer-foot">
@@ -313,8 +367,7 @@ a{color:inherit}
 
 <div class="product-modal" id="about-modal" hidden role="dialog" aria-modal="true">
   <div class="info-panel">
-    <button class="pm-close" id="about-close" aria-label="Close">&times;</button>
-    <img class="crest" id="about-crest" src="" alt="" loading="lazy">
+    <button class="pm-close" id="about-close" aria-label="Close"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     <h3>Made loud on purpose.</h3>
     <p>Built to be worn out, not kept clean. Every drop is cut in small runs, printed by hand and photographed where it lives.</p>
   </div>
@@ -322,7 +375,7 @@ a{color:inherit}
 
 <div class="product-modal" id="signup-modal" hidden role="dialog" aria-modal="true">
   <div class="info-panel">
-    <button class="pm-close" id="signup-close" aria-label="Close">&times;</button>
+    <button class="pm-close" id="signup-close" aria-label="Close"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     <h3>Hear about the next drop first.</h3>
     <div id="signup-slot"></div>
   </div>
@@ -330,7 +383,7 @@ a{color:inherit}
 
 <div class="product-modal" id="info-modal" hidden role="dialog" aria-modal="true">
   <div class="info-panel">
-    <button class="pm-close" id="info-close" aria-label="Close">&times;</button>
+    <button class="pm-close" id="info-close" aria-label="Close"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     <h3>Wockstar</h3>
     <div id="info-slot"></div>
   </div>
@@ -483,16 +536,183 @@ const PIECES=[
   {id:"cap",name:"Star Trucker",cat:"Headwear",price:70,img:"",video:"assets/products/star-cap.mp4",poster:"assets/products/star-cap.jpg",glb:"assets/products/star-cap.glb",buy:"#",hx:90,hy:14}
 ];
 const crest=document.querySelector('.crest').src;
+const FLIP_ICON='<svg class="ico" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 0 0-14.3-4.9L4 8"/><path d="M4 3v5h5"/><path d="M4 13a8 8 0 0 0 14.3 4.9L20 16"/><path d="M20 21v-5h-5"/></svg>';
 document.getElementById('grid').innerHTML=PIECES.map(p=>`
   <article class="piece">
-    <div class="shot">${p.video
-      ?`<video class="piece-video" muted loop playsinline preload="none" poster="${p.poster}" aria-hidden="true" tabindex="-1"><source data-src="${p.video}" type="video/mp4"></video>`
-      :p.img
-      ?`<img src="${p.img}" alt="${p.name}" loading="lazy">`
-      :`<div class="ph"><img src="${crest}" alt=""><span>Photo coming</span></div>`}</div>
-    <div class="meta"><span class="cat">${p.cat}</span><h3>${p.name}</h3><span class="price">$${p.price}</span></div>
-    <button class="btn btn-ghost buy" type="button" data-piece="${p.id}" aria-label="View ${p.name}">View in 3D</button>
+    <div class="flip-card" data-axis="y" data-id="${p.id}">
+      <span class="flip-card__shadow" aria-hidden="true"></span>
+      <div class="flip-card__rotor">
+        <div class="flip-card__face flip-card__face--front">
+          <button class="fc-front" type="button" aria-label="Show details for ${p.name}">
+            <span class="shot">${p.video
+              ?`<video class="piece-video" muted loop playsinline preload="none" poster="${p.poster}" aria-hidden="true" tabindex="-1"><source data-src="${p.video}" type="video/mp4"></video>`
+              :p.img
+              ?`<img src="${p.img}" alt="" loading="lazy">`
+              :`<span class="ph"><img src="${crest}" alt=""><span>Photo coming</span></span>`}</span>
+            <span class="fc-hint">${FLIP_ICON}Details</span>
+          </button>
+          <span class="flip-card__glare" aria-hidden="true"></span>
+        </div>
+        <div class="flip-card__face flip-card__face--back" inert aria-hidden="true" style="--fc-poster:url('${p.poster}')">
+          <div class="fc-back">
+            <button class="fc-unflip" type="button" aria-label="Back to photo">${FLIP_ICON}</button>
+            <p class="fc-name">${p.name}</p>
+            <p class="fc-sub">${p.cat} · <span class="fc-price">$${p.price}</span></p>
+            <p class="fc-desc">Cut in small runs, printed by hand.</p>
+            <div class="fc-actions">
+              <button class="btn btn-main" type="button" data-no-flip data-add="${p.id}">Add to cart</button>
+              <button class="btn btn-ghost fc-3d" type="button" data-no-flip data-piece="${p.id}" aria-label="View ${p.name} in 3D"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/></svg><span class="fc-3d-label">View in 3D</span></button>
+            </div>
+            <p class="fc-added" role="status"></p>
+          </div>
+          <span class="flip-card__glare" aria-hidden="true"></span>
+        </div>
+      </div>
+    </div>
+    <div class="meta"><h3>${p.name}</h3><span class="price">$${p.price}</span><span class="cat">${p.cat}</span></div>
   </article>`).join('');
+
+// FlipCard - vanilla port of React Bits' FlipCard (motion's springs become a small spring
+// integrator). Press flips, drag turns it by hand and a flick carries through, the card
+// leans toward the cursor with a sheen, and reduced motion swaps the turn for a crossfade.
+function initFlipCard(root, o){
+  const opt = Object.assign({ axis: root.dataset.axis || 'y', tiltMax: 12, hoverScale: 1.03, perspective: 1100, stiffness: 170, damping: 20, onFlipChange: null }, o || {});
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)');
+  const rotor = root.querySelector('.flip-card__rotor');
+  const shadow = root.querySelector('.flip-card__shadow');
+  const front = root.querySelector('.flip-card__face--front');
+  const back = root.querySelector('.flip-card__face--back');
+  const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+  const snap = deg => Math.round(deg / 180) * 180;
+  const isBack = deg => Math.abs(Math.round(deg / 180)) % 2 === 1;
+  const spring = (x, k, c, m, rest) => ({ x, v: 0, to: x, k, c, m: m || 1, rest: rest || 0.005 });
+  const turn = spring(0, opt.stiffness, opt.damping, 1, 0.05);
+  const tiltX = spring(0, 240, 24, 0.6), tiltY = spring(0, 240, 24, 0.6);
+  const lift = spring(1, 320, 26, 1, 0.0005), sheen = spring(0, 320, 26);
+  const springs = [turn, tiltX, tiltY, lift, sheen];
+  let shown = false, target = 0, grip = null, raf = 0, last = 0, suppressUntil = 0;
+
+  function render(){
+    const t = turn.x;
+    const rot = opt.axis === 'x'
+      ? `rotateY(${tiltY.x.toFixed(2)}deg) rotateX(${(t + tiltX.x).toFixed(2)}deg)`
+      : `rotateX(${tiltX.x.toFixed(2)}deg) rotateY(${(t + tiltY.x).toFixed(2)}deg)`;
+    rotor.style.transform = reduce.matches ? '' : `perspective(${opt.perspective}px) scale(${lift.x.toFixed(4)}) ${rot}`;
+    rotor.style.setProperty('--fc-sheen', Math.max(0, sheen.x).toFixed(3));
+    const f = Math.abs(Math.cos(t * Math.PI / 180));
+    shadow.style.transform = (opt.axis === 'x' ? 'scaleY(' : 'scaleX(') + (0.08 + 0.92 * f).toFixed(3) + ')';
+    shadow.style.opacity = (0.1 + 0.9 * f * f).toFixed(3);
+  }
+  function tick(now){
+    const dt = Math.min(0.05, (now - last) / 1000 || 0.016);
+    last = now;
+    const n = Math.max(1, Math.ceil(dt * 240)), h = dt / n;
+    let busy = false;
+    for (const s of springs) {
+      if (s === turn && grip && grip.moved) continue;   // the hand owns the turn while dragging
+      if (Math.abs(s.x - s.to) < s.rest && Math.abs(s.v) < s.rest * 10) { s.x = s.to; s.v = 0; continue; }
+      for (let i = 0; i < n; i++) { s.v += ((-s.k * (s.x - s.to) - s.c * s.v) / s.m) * h; s.x += s.v * h; }
+      busy = true;
+    }
+    render();
+    raf = (busy || (grip && grip.moved)) ? requestAnimationFrame(tick) : 0;
+  }
+  function kick(){ if (!raf) { last = performance.now(); raf = requestAnimationFrame(tick); } }
+  function setShown(next){
+    const hadFocus = root.contains(document.activeElement);
+    shown = next;
+    front.inert = next; front.setAttribute('aria-hidden', String(next));
+    back.inert = !next; back.setAttribute('aria-hidden', String(!next));
+    if (reduce.matches) root.dataset.fade = next ? 'back' : 'front'; else delete root.dataset.fade;
+    if (hadFocus) (next ? back.querySelector('.fc-unflip') : front.querySelector('.fc-front')).focus({ preventScroll: true });
+    if (opt.onFlipChange) opt.onFlipChange(next, root);
+  }
+  function settle(to, velocity){
+    target = to;
+    turn.to = to;
+    if (reduce.matches) { turn.x = to; turn.v = 0; } else turn.v = velocity || 0;
+    kick();
+    const next = isBack(to);
+    if (next !== shown) setShown(next);
+  }
+  function flip(){
+    const base = snap(turn.x);
+    settle(isBack(base) ? base - 180 : base + 180, 0);
+  }
+  function rest(){ tiltX.to = 0; tiltY.to = 0; sheen.to = 0; lift.to = 1; kick(); }
+
+  root.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || grip || e.target.closest('[data-no-flip]')) return;
+    grip = { id: e.pointerId, x: e.clientX, y: e.clientY, base: turn.x, moved: false, slop: e.pointerType === 'touch' ? 8 : 4, hist: [] };
+    if (!reduce.matches) { lift.to = opt.hoverScale; kick(); }
+  });
+  root.addEventListener('pointermove', (e) => {
+    const g = grip;
+    if (g && g.id === e.pointerId) {
+      const d = opt.axis === 'x' ? e.clientY - g.y : e.clientX - g.x;
+      if (!g.moved) {
+        if (Math.abs(d) < g.slop || reduce.matches) return;
+        g.moved = true;
+        try { root.setPointerCapture(e.pointerId); } catch {}
+        root.dataset.dragging = '';
+        tiltX.to = 0; tiltY.to = 0; sheen.to = 0;
+      }
+      const span = opt.axis === 'x' ? root.offsetHeight : root.offsetWidth;
+      const deg = g.base + (opt.axis === 'x' ? -1 : 1) * (d / span) * 180;
+      turn.x = deg; turn.v = 0;
+      const now = performance.now();
+      g.hist.push({ t: now, v: deg });
+      while (g.hist.length > 2 && now - g.hist[0].t > 90) g.hist.shift();
+      kick();
+      return;
+    }
+    if (reduce.matches || e.pointerType === 'touch') return;
+    const r = root.getBoundingClientRect();
+    const px = clamp((e.clientX - r.left) / r.width, 0, 1), py = clamp((e.clientY - r.top) / r.height, 0, 1);
+    tiltX.to = (0.5 - py) * 2 * opt.tiltMax;
+    tiltY.to = (px - 0.5) * 2 * opt.tiltMax;
+    rotor.style.setProperty('--fc-gx', (px * 100).toFixed(1) + '%');
+    rotor.style.setProperty('--fc-gy', (py * 100).toFixed(1) + '%');
+    sheen.to = 1; lift.to = opt.hoverScale;
+    kick();
+  });
+  function release(e, cancelled){
+    const g = grip;
+    if (!g || g.id !== e.pointerId) return;
+    grip = null;
+    try { if (root.hasPointerCapture(e.pointerId)) root.releasePointerCapture(e.pointerId); } catch {}
+    delete root.dataset.dragging;
+    if (e.pointerType === 'touch' || !root.matches(':hover')) rest();
+    if (!g.moved) { if (cancelled) settle(target, 0); return; }   // a plain press flips through the click below
+    suppressUntil = performance.now() + 80;                        // ...but a drag must not also count as a click
+    const here = turn.x;
+    let velocity = 0;
+    const a = g.hist[0], b = g.hist[g.hist.length - 1];
+    if (!cancelled && a && b && b.t > a.t && performance.now() - b.t < 60) velocity = ((b.v - a.v) / (b.t - a.t)) * 1000;
+    const to = cancelled ? snap(g.base) : clamp(snap(here + velocity * 0.16), snap(here) - 180, snap(here) + 180);
+    settle(to, velocity);
+  }
+  root.addEventListener('pointerup', (e) => release(e, false));
+  root.addEventListener('pointercancel', (e) => release(e, true));
+  root.addEventListener('lostpointercapture', (e) => release(e, true));
+  root.addEventListener('pointerenter', (e) => { if (!reduce.matches && e.pointerType !== 'touch') { lift.to = opt.hoverScale; kick(); } });
+  root.addEventListener('pointerleave', () => { if (!grip) rest(); });
+  root.addEventListener('dragstart', (e) => e.preventDefault());
+  root.addEventListener('click', (e) => {
+    if (performance.now() < suppressUntil) { e.preventDefault(); e.stopPropagation(); return; }
+    if (e.target.closest('[data-no-flip]')) return;   // Add to cart / View in 3D do their own thing
+    flip();
+  }, true);
+  root.addEventListener('keydown', (e) => { if (e.key === 'Escape' && shown) { e.stopPropagation(); flip(); } });
+  if (!reduce.matches) root.dataset.draggable = '';
+  render();
+}
+document.querySelectorAll('.flip-card').forEach((el) => initFlipCard(el, {
+  onFlipChange(onBack, card){
+    const v = card.querySelector('.piece-video');
+    if (v && onBack) v.pause();
+  },
+}));
 
 // Hero hotspots, product modal (3D viewer + add to cart), and cart drawer.
 window.PIECES = PIECES;
@@ -537,7 +757,13 @@ window.PIECES = PIECES;
   const aboutModal = document.getElementById('about-modal');
   const signupModal = document.getElementById('signup-modal');
   const infoModal = document.getElementById('info-modal');
-  document.getElementById('about-crest').src = document.querySelector('.manifesto .crest').src;
+  {
+    const crestImg = document.createElement('img');
+    crestImg.className = 'crest';
+    crestImg.alt = '';
+    crestImg.src = document.querySelector('.manifesto .crest').src;
+    aboutModal.querySelector('h3').before(crestImg);
+  }
 
   function openAboutModal(){ aboutModal.hidden = false; document.body.style.overflow = 'hidden'; }
   function closeAboutModal(){ aboutModal.hidden = true; document.body.style.overflow = ''; }
@@ -611,7 +837,7 @@ window.PIECES = PIECES;
     cartCount.textContent = count;
     cartCount.hidden = count === 0;
     if (!ids.length){
-      cartItems.innerHTML = '<p class="cart-empty">Your cart is empty.</p>';
+      cartItems.innerHTML = '<div class="cart-empty"><p style="margin:0">Your cart is empty.</p><a class="btn btn-ghost" href="#drop" data-close-cart>Shop Drop 01</a></div>';
       cartTotal.textContent = '$0';
       return;
     }
@@ -644,9 +870,47 @@ window.PIECES = PIECES;
     writeCart(cart);
     renderCart();
   }
-  function openCart(){ cartDrawer.classList.add('open'); cartScrim.classList.add('open'); }
+  let cartReturnFocus = null;
+  cartDrawer.inert = true;
+  function openCart(){
+    cartReturnFocus = document.activeElement;
+    cartDrawer.inert = false;
+    cartDrawer.classList.add('open');
+    cartScrim.classList.add('open');
+    document.getElementById('cart-close').focus({ preventScroll: true });
+  }
   window.openCart = openCart;
-  function closeCart(){ cartDrawer.classList.remove('open'); cartScrim.classList.remove('open'); }
+  function closeCart(){
+    if (!cartDrawer.classList.contains('open')) return;
+    cartDrawer.classList.remove('open');
+    cartScrim.classList.remove('open');
+    cartDrawer.inert = true;
+    if (cartReturnFocus && document.contains(cartReturnFocus)) cartReturnFocus.focus({ preventScroll: true });
+  }
+  window.addToCart = addToCart;
+  document.addEventListener('click', e => {
+    const add = e.target.closest('[data-add]');
+    if (add) {
+      addToCart(add.dataset.add);
+      const status = add.closest('.fc-back') && add.closest('.fc-back').querySelector('.fc-added');
+      if (status) status.textContent = 'Added to your cart.';
+      return;
+    }
+    if (e.target.closest('[data-close-cart]')) closeCart();
+  });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeCart(); });
+  // dialogs: focus moves in when one opens and returns to where it came from on close
+  const dialogReturn = new WeakMap();
+  document.querySelectorAll('.product-modal').forEach(m => new MutationObserver(() => {
+    if (!m.hidden) {
+      dialogReturn.set(m, document.activeElement);
+      const close = m.querySelector('.pm-close');
+      if (close) close.focus({ preventScroll: true });
+    } else {
+      const back = dialogReturn.get(m);
+      if (back && back !== document.body && document.contains(back)) back.focus({ preventScroll: true });
+    }
+  }).observe(m, { attributes: true, attributeFilter: ['hidden'] }));
 
   pmAdd.addEventListener('click', () => {
     if (!current) return;
@@ -698,10 +962,16 @@ document.getElementById('alert-form').addEventListener('submit',e=>{
   const n=document.getElementById('note');
   const btn=document.getElementById('alert-submit');
   const syncing=document.getElementById('alert-syncing');
+  const input=document.getElementById('email');
   if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)){
     n.textContent="Enter a full email address, like name@email.com.";
+    n.classList.add('is-error');
+    input.setAttribute('aria-invalid','true');
+    input.focus();
     return;
   }
+  n.classList.remove('is-error');
+  input.removeAttribute('aria-invalid');
   btn.hidden=true;
   btn.disabled=true;
   syncing.hidden=false;
@@ -770,7 +1040,8 @@ import { GLTFLoader } from './assets/vendor/three/loaders/GLTFLoader.js';
   // WebGL confirmed working: this is going to be a 3D store, so say so immediately -
   // relabel the hero's own CTA buttons rather than bolt on a redundant "enter" prompt.
   const shopBtn = document.getElementById('hero-shop-btn');
-  shopBtn.textContent = isTouch ? 'Tap to walk in →' : 'Click to walk in →';
+  shopBtn.innerHTML = (isTouch ? 'Tap to walk in' : 'Click to walk in') +
+    ' <svg class="ico" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
   shopBtn.classList.add('btn-pulse');
   shopBtn.addEventListener('click', (e) => {
     e.preventDefault();
