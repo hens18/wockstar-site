@@ -809,8 +809,10 @@ import { GLTFLoader } from './assets/vendor/three/loaders/GLTFLoader.js';
   const startPos = new THREE.Vector3(0, 5.8, 15);
   const endPos = new THREE.Vector3(0, EYE_Y, ROOM.entranceZ);
   const lookTarget = new THREE.Vector3(0, EYE_Y, ROOM.wallZ);
-  camera.position.copy(reduceMotion ? endPos : startPos);
-  camera.lookAt(reduceMotion ? lookTarget : new THREE.Vector3(0, 1, 0));
+  // test: start already positioned at the entrance, interactive immediately - no pan-in
+  const SKIP_INTRO_PAN = true;
+  camera.position.copy(SKIP_INTRO_PAN || reduceMotion ? endPos : startPos);
+  camera.lookAt(SKIP_INTRO_PAN || reduceMotion ? lookTarget : new THREE.Vector3(0, 1, 0));
 
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -923,6 +925,8 @@ import { GLTFLoader } from './assets/vendor/three/loaders/GLTFLoader.js';
 
   // interactables: unified list the raycaster/crosshair system checks - products and kiosks alike
   const interactables = [];
+  // colliders: keeps the player from walking into/through a pedestal or kiosk and clipping the mesh
+  const colliders = [];
 
   function addKiosk(x, z, label, kind, color){
     const base = new THREE.Mesh(
@@ -951,6 +955,7 @@ import { GLTFLoader } from './assets/vendor/three/loaders/GLTFLoader.js';
     hitbox.userData.kind = kind;
     scene.add(hitbox);
     interactables.push({ kind, hitbox, sign });
+    colliders.push({ x, z, radius: 0.85 });
   }
 
   addKiosk(-3.4, 1.6, 'About', 'about', 0xb88cf2);
@@ -1009,6 +1014,7 @@ import { GLTFLoader } from './assets/vendor/three/loaders/GLTFLoader.js';
 
     garmentRoots.push({ id: p.id, root, glb: p.glb, mesh: null, hitbox, baseY: 0.9, lift: 0 });
     interactables.push({ kind: 'product', id: p.id, hitbox });
+    colliders.push({ x, z, radius: 0.9 });
   });
 
   const loader = new GLTFLoader();
@@ -1036,7 +1042,7 @@ import { GLTFLoader } from './assets/vendor/three/loaders/GLTFLoader.js';
   document.body.classList.add('is-3d-mode');
 
   function easeOutCubic(x){ return 1 - Math.pow(1 - x, 3); }
-  let panT = reduceMotion ? 1 : 0;
+  let panT = SKIP_INTRO_PAN || reduceMotion ? 1 : 0;
   let panStart = null;
   const panDuration = 2600;
   let yaw = 0, pitch = 0;
@@ -1192,6 +1198,17 @@ import { GLTFLoader } from './assets/vendor/three/loaders/GLTFLoader.js';
         camera.position.add(moveVec3);
         camera.position.x = Math.max(ROOM.minX, Math.min(ROOM.maxX, camera.position.x));
         camera.position.z = Math.max(ROOM.minZ, Math.min(ROOM.maxZ, camera.position.z));
+        // push back out of any pedestal/kiosk so you can never stand inside a garment
+        // (this is what was causing the mesh to fill the screen and clip through the UI)
+        for (const c of colliders) {
+          const dx = camera.position.x - c.x, dz = camera.position.z - c.z;
+          const dist = Math.hypot(dx, dz);
+          if (dist < c.radius && dist > 0.0001) {
+            const push = c.radius / dist;
+            camera.position.x = c.x + dx * push;
+            camera.position.z = c.z + dz * push;
+          }
+        }
       }
       camera.position.y = EYE_Y;
 
