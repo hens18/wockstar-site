@@ -47,10 +47,9 @@ a{color:inherit}
 /* hero */
 .hero{position:relative;height:100svh;min-height:560px;overflow:hidden;display:flex;align-items:flex-end}
 .hero-media{position:absolute;inset:0;background-size:cover;background-position:50% 35%}
-#hero-3d{width:100%;height:100%;display:block;opacity:0;transition:opacity 1s ease;cursor:grab}
+#hero-3d{width:100%;height:100%;display:block;opacity:0;transition:opacity 1s ease;cursor:pointer}
 #hero-3d.ready{opacity:1}
-#hero-3d.grabbing{cursor:grabbing}
-#hero-3d.hoverable{cursor:pointer}
+#hero-3d.walking{cursor:none}
 @keyframes push{from{transform:scale(1.12)}to{transform:scale(1)}}
 .hero::after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(to top,#000 4%,rgba(0,0,0,.55) 38%,rgba(0,0,0,.15) 70%,rgba(0,0,0,.4))}
 .hero-copy{position:relative;z-index:2;width:100%;padding:0 clamp(18px,4vw,48px) clamp(36px,7vh,80px)}
@@ -67,8 +66,18 @@ a{color:inherit}
 .btn-ghost:hover{background:rgba(184,140,242,.15)}
 
 /* hero 3D scene label (hover tooltip for the currently raycast-hit garment) */
-.hero-label{position:absolute;z-index:3;transform:translate(-50%,-130%);white-space:nowrap;font-size:12px;font-weight:600;letter-spacing:.04em;color:var(--bone);background:rgba(10,9,12,.72);padding:6px 12px;border-radius:999px;opacity:0;transition:opacity .15s;pointer-events:none}
+.hero-label{position:absolute;left:50%;top:50%;z-index:3;transform:translate(-50%,-260%);white-space:nowrap;font-size:12px;font-weight:600;letter-spacing:.04em;color:var(--bone);background:rgba(10,9,12,.72);padding:6px 12px;border-radius:999px;opacity:0;transition:opacity .15s;pointer-events:none}
 .hero-label.show{opacity:1}
+.hero-crosshair{position:absolute;left:50%;top:50%;z-index:3;width:6px;height:6px;margin:-3px;border-radius:50%;background:rgba(239,237,243,.55);opacity:0;transition:opacity .3s,background .15s,transform .15s;pointer-events:none}
+.hero-crosshair.show{opacity:1}
+.hero-crosshair.hit{background:var(--lav);transform:scale(2.2)}
+.hero-hint{position:absolute;left:50%;bottom:18px;z-index:3;transform:translateX(-50%);font-size:12px;color:var(--chrome);background:rgba(10,9,12,.55);padding:7px 14px;border-radius:999px;opacity:0;transition:opacity .5s;pointer-events:none;white-space:nowrap}
+.hero-hint.show{opacity:1}
+.hero-joystick{position:absolute;z-index:4;width:96px;height:96px;margin:-48px;border-radius:50%;border:1px solid rgba(239,237,243,.35);background:rgba(10,9,12,.25);opacity:0;pointer-events:none}
+.hero-joystick.show{opacity:1}
+.hero-joystick .knob{position:absolute;left:50%;top:50%;width:40px;height:40px;margin:-20px;border-radius:50%;background:rgba(239,237,243,.5)}
+.hero-interact{position:absolute;right:22px;bottom:28px;z-index:4;width:64px;height:64px;border-radius:50%;border:1px solid var(--lav);background:rgba(184,140,242,.18);color:var(--bone);font-size:12px;font-weight:700;letter-spacing:.02em;opacity:0;transform:scale(.85);transition:opacity .15s,transform .15s;pointer-events:none}
+.hero-interact.show{opacity:1;transform:scale(1);pointer-events:auto}
 
 /* product modal */
 .product-modal{position:fixed;inset:0;z-index:50;display:grid;place-items:center;padding:24px;background:rgba(5,4,6,.72);backdrop-filter:blur(6px)}
@@ -208,6 +217,10 @@ a{color:inherit}
     <div class="hero-media" id="hero-media" style="background-image:url('assets/hero-poster.jpg')">
       <canvas id="hero-3d" aria-label="Interactive 3D storefront - click a garment to view details" role="img"></canvas>
       <div class="hero-label" id="hero-label"></div>
+      <div class="hero-crosshair" id="hero-crosshair"></div>
+      <div class="hero-hint" id="hero-hint"></div>
+      <div class="hero-joystick" id="hero-joystick"><div class="knob" id="hero-joystick-knob"></div></div>
+      <button class="hero-interact" id="hero-interact" type="button" aria-label="View item">View</button>
     </div>
     <div class="hero-copy">
       <h1 class="wordmark">Wockstar</h1>
@@ -629,12 +642,16 @@ document.getElementById('alert-form').addEventListener('submit',e=>{
 <script type="module">
 import * as THREE from 'three';
 import { GLTFLoader } from './assets/vendor/three/loaders/GLTFLoader.js';
-import { OrbitControls } from './assets/vendor/three/controls/OrbitControls.js';
 
 (async () => {
   const canvas = document.getElementById('hero-3d');
   const heroMedia = document.getElementById('hero-media');
   const label = document.getElementById('hero-label');
+  const crosshair = document.getElementById('hero-crosshair');
+  const hint = document.getElementById('hero-hint');
+  const joystick = document.getElementById('hero-joystick');
+  const joystickKnob = document.getElementById('hero-joystick-knob');
+  const interactBtn = document.getElementById('hero-interact');
   if (!canvas || !window.PIECES || !window.openProductModal) return;
 
   let gl;
@@ -642,16 +659,22 @@ import { OrbitControls } from './assets/vendor/three/controls/OrbitControls.js';
   if (!gl) return; // no WebGL: the CSS poster background on #hero-media stays visible, nothing else runs
 
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const isTouch = matchMedia('(pointer: coarse)').matches;
+
+  // room bounds (metres) - matches the Blender-drafted shell's proportions
+  const ROOM = { minX: -4.4, maxX: 4.4, minZ: -12.4, maxZ: 3.0, wallZ: -13, entranceZ: 3.4, width: 10, height: 4 };
+  const EYE_Y = 1.65;
 
   const scene = new THREE.Scene();
-  scene.fog = new THREE.FogExp2(0x0a0910, 0.045);
+  scene.fog = new THREE.FogExp2(0x0a0910, 0.05);
 
-  const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
-  const startPos = new THREE.Vector3(0, 5.5, 16);
-  const endPos = new THREE.Vector3(0, 1.55, 6.2);
-  const target = new THREE.Vector3(0, 1, 0);
+  const camera = new THREE.PerspectiveCamera(52, 1, 0.1, 100);
+  camera.rotation.order = 'YXZ';
+  const startPos = new THREE.Vector3(0, 5.8, 15);
+  const endPos = new THREE.Vector3(0, EYE_Y, ROOM.entranceZ);
+  const lookTarget = new THREE.Vector3(0, EYE_Y, ROOM.wallZ);
   camera.position.copy(reduceMotion ? endPos : startPos);
-  camera.lookAt(target);
+  camera.lookAt(reduceMotion ? lookTarget : new THREE.Vector3(0, 1, 0));
 
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -666,67 +689,96 @@ import { OrbitControls } from './assets/vendor/three/controls/OrbitControls.js';
   resize();
   addEventListener('resize', resize);
 
-  scene.add(new THREE.HemisphereLight(0x6a5a8a, 0x0a0910, 0.55));
-  const key = new THREE.PointLight(0xb88cf2, 30, 20, 2);
-  key.position.set(0, 6, 2);
+  scene.add(new THREE.HemisphereLight(0x6a5a8a, 0x0a0910, 0.5));
+  const key = new THREE.PointLight(0xb88cf2, 26, 22, 2);
+  key.position.set(0, 3.6, -2);
   scene.add(key);
-  const rim = new THREE.PointLight(0x5a3690, 18, 20, 2);
-  rim.position.set(0, 3, -6);
+  const rim = new THREE.PointLight(0x5a3690, 20, 22, 2);
+  rim.position.set(0, 3.2, ROOM.wallZ + 2);
   scene.add(rim);
 
-  const floor = new THREE.Mesh(
-    new THREE.CircleGeometry(14, 48),
-    new THREE.MeshStandardMaterial({ color: 0x17151b, roughness: 0.25, metalness: 0.4 })
-  );
+  const floorMat = new THREE.MeshStandardMaterial({ color: 0x17151b, roughness: 0.25, metalness: 0.4 });
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0x241f2c, roughness: 0.9 });
+
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(ROOM.width, ROOM.entranceZ - ROOM.wallZ), floorMat);
   floor.rotation.x = -Math.PI / 2;
+  floor.position.set(0, 0, (ROOM.entranceZ + ROOM.wallZ) / 2);
   scene.add(floor);
 
-  const wall = new THREE.Mesh(
-    new THREE.PlaneGeometry(26, 10),
-    new THREE.MeshStandardMaterial({ color: 0x2a2531, roughness: 0.9 })
-  );
-  wall.position.set(0, 5, -8);
-  scene.add(wall);
+  const ceiling = floor.clone();
+  ceiling.material = wallMat;
+  ceiling.rotation.x = Math.PI / 2;
+  ceiling.position.y = ROOM.height;
+  scene.add(ceiling);
+
+  const backWall = new THREE.Mesh(new THREE.PlaneGeometry(ROOM.width, ROOM.height), wallMat);
+  backWall.position.set(0, ROOM.height / 2, ROOM.wallZ);
+  scene.add(backWall);
+
+  const sideDepth = ROOM.entranceZ - ROOM.wallZ;
+  const leftWall = new THREE.Mesh(new THREE.PlaneGeometry(sideDepth, ROOM.height), wallMat);
+  leftWall.rotation.y = Math.PI / 2;
+  leftWall.position.set(ROOM.minX - 0.1, ROOM.height / 2, (ROOM.entranceZ + ROOM.wallZ) / 2);
+  scene.add(leftWall);
+
+  const rightWall = leftWall.clone();
+  rightWall.rotation.y = -Math.PI / 2;
+  rightWall.position.x = ROOM.maxX + 0.1;
+  scene.add(rightWall);
+
   const crestImg = document.querySelector('.crest');
   if (crestImg && crestImg.src) {
     new THREE.TextureLoader().load(crestImg.src, (tex) => {
       tex.colorSpace = THREE.SRGBColorSpace;
       const crestPlane = new THREE.Mesh(
-        new THREE.PlaneGeometry(5, 5),
+        new THREE.PlaneGeometry(3.6, 3.6),
         new THREE.MeshBasicMaterial({ map: tex, transparent: true })
       );
-      crestPlane.position.set(0, 5.2, -7.9);
+      crestPlane.position.set(0, 2.5, ROOM.wallZ + 0.05);
       scene.add(crestPlane);
     });
   }
 
+  // 6 garments on pedestals along both side walls, aisle down the middle
   const N = window.PIECES.length;
-  const radius = 5.2;
-  const spread = Math.PI * 0.62;
+  const perSide = Math.ceil(N / 2);
+  const rowSpacing = sideDepth / (perSide + 1);
+  const pedestalX = 2.7;
   const garmentRoots = [];
 
   window.PIECES.forEach((p, i) => {
-    const t = N === 1 ? 0.5 : i / (N - 1);
-    const angle = -spread / 2 + t * spread;
-    const x = Math.sin(angle) * radius;
-    const z = -Math.cos(angle) * radius + radius * 0.35;
+    const side = i % 2 === 0 ? -1 : 1;
+    const row = Math.floor(i / 2);
+    const x = side * pedestalX;
+    const z = ROOM.entranceZ - rowSpacing * (row + 1);
 
     const pedestal = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.55, 0.65, 0.9, 24),
+      new THREE.CylinderGeometry(0.5, 0.6, 0.9, 24),
       new THREE.MeshStandardMaterial({ color: 0x0c0b0e, roughness: 0.35, metalness: 0.5 })
     );
     pedestal.position.set(x, 0.45, z);
     scene.add(pedestal);
 
-    const spot = new THREE.SpotLight(0xefedf3, 22, 8, Math.PI / 7, 0.4, 1.4);
-    spot.position.set(x, 3.6, z + 0.6);
+    const spot = new THREE.SpotLight(0xefedf3, 20, 7, Math.PI / 7, 0.4, 1.4);
+    spot.position.set(x, 3.4, z);
     spot.target.position.set(x, 0.9, z);
     scene.add(spot, spot.target);
 
     const root = new THREE.Group();
     root.position.set(x, 0.9, z);
     scene.add(root);
-    garmentRoots.push({ id: p.id, root, glb: p.glb, mesh: null });
+
+    // generous invisible hitbox for reliable raycasting - real garment geometry can be
+    // thin/irregular (single-photo 3D reconstruction), which makes exact-mesh picking unreliable
+    const hitbox = new THREE.Mesh(
+      new THREE.BoxGeometry(0.85, 1.2, 0.85),
+      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false })
+    );
+    hitbox.position.y = 0.5;
+    hitbox.userData.pieceId = p.id;
+    root.add(hitbox);
+
+    garmentRoots.push({ id: p.id, root, glb: p.glb, mesh: null, hitbox });
   });
 
   const loader = new GLTFLoader();
@@ -756,90 +808,173 @@ import { OrbitControls } from './assets/vendor/three/controls/OrbitControls.js';
   let panT = reduceMotion ? 1 : 0;
   let panStart = null;
   const panDuration = 2600;
-  let controls;
-  function initControls(){
-    controls = new OrbitControls(camera, canvas);
-    controls.target.copy(target);
-    controls.enablePan = false;
-    controls.minDistance = 3.5;
-    controls.maxDistance = 9;
-    controls.minPolarAngle = Math.PI * 0.28;
-    controls.maxPolarAngle = Math.PI * 0.52;
-    controls.minAzimuthAngle = -Math.PI * 0.42;
-    controls.maxAzimuthAngle = Math.PI * 0.42;
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.08;
-    controls.update();
+  let yaw = 0, pitch = 0;
+  let walking = false;
+
+  function beginWalking(){
+    if (walking) return;
+    walking = true;
+    yaw = camera.rotation.y;
+    pitch = camera.rotation.x;
+    canvas.classList.add('walking');
+    crosshair.classList.add('show');
+    hint.textContent = isTouch ? 'Left side to walk · right side to look · tap View to select' : 'WASD to walk · mouse to look · click an item to select';
+    hint.classList.add('show');
+    setTimeout(() => hint.classList.remove('show'), 4200);
   }
-  if (reduceMotion) initControls();
 
-  const raycaster = new THREE.Raycaster();
-  const pointerNDC = new THREE.Vector2();
-  let hovered = null;
-  let downPos = null;
+  // desktop: pointer lock + WASD
+  const keys = Object.create(null);
+  addEventListener('keydown', (e) => { keys[e.code] = true; });
+  addEventListener('keyup', (e) => { keys[e.code] = false; });
 
-  function updatePointer(e){
+  function requestLock(){
+    if (canvas.requestPointerLock) canvas.requestPointerLock();
+  }
+  document.addEventListener('pointerlockchange', () => {
+    if (document.pointerLockElement === canvas) beginWalking();
+  });
+  addEventListener('mousemove', (e) => {
+    if (document.pointerLockElement !== canvas) return;
+    yaw -= e.movementX * 0.0022;
+    pitch -= e.movementY * 0.0022;
+    pitch = Math.max(-1.15, Math.min(1.15, pitch));
+  });
+
+  // touch: left half = movement joystick, right half = look-drag
+  const touchState = { moveId: null, lookId: null, moveVec: { x: 0, y: 0 }, lookLast: null };
+  canvas.addEventListener('touchstart', (e) => {
+    if (panT < 1) return;
+    beginWalking();
     const rect = canvas.getBoundingClientRect();
-    pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-    pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-  }
-  function pickPieceId(){
-    raycaster.setFromCamera(pointerNDC, camera);
-    const meshes = garmentRoots.filter(g => g.mesh).map(g => g.mesh);
-    const hits = raycaster.intersectObjects(meshes, true);
-    if (!hits.length) return null;
-    let obj = hits[0].object;
-    while (obj && !obj.userData.pieceId) obj = obj.parent;
-    return obj ? obj.userData.pieceId : null;
-  }
-
-  canvas.addEventListener('pointermove', (e) => {
-    updatePointer(e);
-    const id = panT >= 1 ? pickPieceId() : null;
-    if (id !== hovered) {
-      hovered = id;
-      canvas.classList.toggle('hoverable', !!id);
-      if (id) {
-        const p = window.PIECES.find(x => x.id === id);
-        label.textContent = p ? p.name : '';
-        label.classList.add('show');
-      } else {
-        label.classList.remove('show');
+    for (const t of e.changedTouches) {
+      const localX = t.clientX - rect.left;
+      if (localX < rect.width / 2 && touchState.moveId === null) {
+        touchState.moveId = t.identifier;
+        touchState.origin = { x: t.clientX, y: t.clientY };
+        joystick.style.left = t.clientX - rect.left + 'px';
+        joystick.style.top = t.clientY - rect.top + 'px';
+        joystick.classList.add('show');
+      } else if (touchState.lookId === null) {
+        touchState.lookId = t.identifier;
+        touchState.lookLast = { x: t.clientX, y: t.clientY };
       }
     }
-    if (id) {
-      const rect = canvas.getBoundingClientRect();
-      label.style.left = (e.clientX - rect.left) + 'px';
-      label.style.top = (e.clientY - rect.top) + 'px';
+  }, { passive: true });
+  canvas.addEventListener('touchmove', (e) => {
+    for (const t of e.changedTouches) {
+      if (t.identifier === touchState.moveId) {
+        let dx = t.clientX - touchState.origin.x;
+        let dy = t.clientY - touchState.origin.y;
+        const d = Math.hypot(dx, dy) || 1;
+        const clamp = Math.min(d, 42) / d;
+        dx *= clamp; dy *= clamp;
+        touchState.moveVec = { x: dx / 42, y: dy / 42 };
+        joystickKnob.style.transform = `translate(${dx}px, ${dy}px)`;
+      } else if (t.identifier === touchState.lookId) {
+        const dx = t.clientX - touchState.lookLast.x;
+        const dy = t.clientY - touchState.lookLast.y;
+        touchState.lookLast = { x: t.clientX, y: t.clientY };
+        yaw -= dx * 0.0032;
+        pitch -= dy * 0.0032;
+        pitch = Math.max(-1.15, Math.min(1.15, pitch));
+      }
     }
-  });
-  canvas.addEventListener('pointerdown', (e) => { downPos = { x: e.clientX, y: e.clientY }; canvas.classList.add('grabbing'); });
-  canvas.addEventListener('pointerup', (e) => {
-    canvas.classList.remove('grabbing');
-    if (!downPos) return;
-    const moved = Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y);
-    downPos = null;
-    if (moved > 6 || panT < 1) return;
-    updatePointer(e);
-    const id = pickPieceId();
-    if (id) window.openProductModal(id);
-  });
-  canvas.addEventListener('pointerleave', () => { label.classList.remove('show'); hovered = null; canvas.classList.remove('hoverable'); });
+  }, { passive: true });
+  function touchEnd(e){
+    for (const t of e.changedTouches) {
+      if (t.identifier === touchState.moveId) {
+        touchState.moveId = null;
+        touchState.moveVec = { x: 0, y: 0 };
+        joystickKnob.style.transform = 'translate(0,0)';
+        joystick.classList.remove('show');
+      }
+      if (t.identifier === touchState.lookId) touchState.lookId = null;
+    }
+  }
+  canvas.addEventListener('touchend', touchEnd);
+  canvas.addEventListener('touchcancel', touchEnd);
 
+  const raycaster = new THREE.Raycaster();
+  let hovered = null;
+
+  function pickPieceId(){
+    raycaster.setFromCamera({ x: 0, y: 0 }, camera);
+    const hitboxes = garmentRoots.map(g => g.hitbox);
+    const hits = raycaster.intersectObjects(hitboxes, false);
+    return hits.length ? hits[0].object.userData.pieceId : null;
+  }
+  function tryInteract(){
+    if (hovered) window.openProductModal(hovered);
+  }
+
+  canvas.addEventListener('click', () => {
+    if (panT < 1) return;
+    if (!isTouch && document.pointerLockElement !== canvas) { requestLock(); return; }
+    tryInteract();
+  });
+  interactBtn.addEventListener('click', (e) => { e.stopPropagation(); tryInteract(); });
+  addEventListener('keydown', (e) => { if ((e.code === 'Enter' || e.code === 'Space') && walking) tryInteract(); });
+
+  const moveVec3 = new THREE.Vector3();
+  let lastT = null;
   function animate(now){
     requestAnimationFrame(animate);
+    const dt = lastT ? Math.min(0.05, (now - lastT) / 1000) : 0.016;
+    lastT = now;
+
     if (panT < 1) {
       if (panStart === null) panStart = now;
       const raw = Math.min(1, (now - panStart) / panDuration);
       panT = raw;
       camera.position.lerpVectors(startPos, endPos, easeOutCubic(raw));
-      camera.lookAt(target);
-      if (raw >= 1 && !controls) initControls();
-    } else if (controls) {
-      controls.update();
+      const midTarget = new THREE.Vector3(0, 1 + (EYE_Y - 1) * raw, 0).lerp(lookTarget, raw);
+      camera.lookAt(lookTarget);
+      if (raw >= 1) {
+        yaw = camera.rotation.y; pitch = camera.rotation.x;
+        hint.textContent = isTouch ? 'Tap the store to walk in' : 'Click to walk in';
+        hint.classList.add('show');
+      }
+    } else {
+      camera.rotation.y = yaw;
+      camera.rotation.x = pitch;
+
+      let mx = 0, mz = 0;
+      if (keys['KeyW'] || keys['ArrowUp']) mz -= 1;
+      if (keys['KeyS'] || keys['ArrowDown']) mz += 1;
+      if (keys['KeyA'] || keys['ArrowLeft']) mx -= 1;
+      if (keys['KeyD'] || keys['ArrowRight']) mx += 1;
+      if (touchState.moveVec.x || touchState.moveVec.y) { mx = touchState.moveVec.x; mz = touchState.moveVec.y; }
+
+      const len = Math.hypot(mx, mz);
+      if (len > 0.001) {
+        mx /= (len > 1 ? len : 1); mz /= (len > 1 ? len : 1);
+        const speed = 3.2;
+        const cosY = Math.cos(yaw), sinY = Math.sin(yaw);
+        moveVec3.set(mx * cosY - mz * sinY, 0, mx * -sinY - mz * cosY).multiplyScalar(speed * dt);
+        camera.position.add(moveVec3);
+        camera.position.x = Math.max(ROOM.minX, Math.min(ROOM.maxX, camera.position.x));
+        camera.position.z = Math.max(ROOM.minZ, Math.min(ROOM.maxZ, camera.position.z));
+      }
+      camera.position.y = EYE_Y;
+
+      const id = pickPieceId();
+      if (id !== hovered) {
+        hovered = id;
+        crosshair.classList.toggle('hit', !!id);
+        interactBtn.classList.toggle('show', !!id && isTouch);
+        if (id) {
+          const p = window.PIECES.find(x => x.id === id);
+          label.textContent = p ? p.name : '';
+          label.classList.add('show');
+        } else {
+          label.classList.remove('show');
+        }
+      }
     }
+
     if (!reduceMotion) {
-      garmentRoots.forEach((g, i) => { if (g.mesh) g.mesh.rotation.y += 0.0035 + i * 0.0002; });
+      garmentRoots.forEach((g, i) => { if (g.mesh) g.mesh.rotation.y += 0.006 + i * 0.0003; });
     }
     renderer.render(scene, camera);
   }
