@@ -645,6 +645,7 @@ window.PIECES = PIECES;
     renderCart();
   }
   function openCart(){ cartDrawer.classList.add('open'); cartScrim.classList.add('open'); }
+  window.openCart = openCart;
   function closeCart(){ cartDrawer.classList.remove('open'); cartScrim.classList.remove('open'); }
 
   pmAdd.addEventListener('click', () => {
@@ -914,39 +915,90 @@ import { GLTFLoader } from './assets/vendor/three/loaders/GLTFLoader.js';
   addFixture(ROOM.minX + 1, 2.4, -6, 0xff3fb0);
   addFixture(ROOM.maxX - 1, 2.4, -6, 0x3fd0ff);
 
-  // checkout counter + register - decorative for now, no cashier yet
+  // checkout counter at the front of the store, right as you walk in. Aim at it to open the cart.
+  const COUNTER_Z = 1.3;
   const counter = new THREE.Group();
-  counter.position.set(ROOM.maxX - 0.7, 0, -3);
-  counter.rotation.y = -Math.PI / 2;
+  counter.position.set(ROOM.maxX - 0.7, 0, COUNTER_Z);
+  counter.rotation.y = -Math.PI / 2;   // local +z faces the aisle, local +x runs toward the door
   scene.add(counter);
-  const counterBody = new THREE.Mesh(
-    new THREE.BoxGeometry(2.0, 1.05, 0.6),
-    new THREE.MeshStandardMaterial({ color: 0x14101c, roughness: 0.35, metalness: 0.5 })
+  const counterMat = new THREE.MeshStandardMaterial({ color: 0x14101c, roughness: 0.35, metalness: 0.5 });
+  const darkMat = new THREE.MeshStandardMaterial({ color: 0x0c0b0e, roughness: 0.4, metalness: 0.5 });
+  const paleMat = new THREE.MeshStandardMaterial({ color: 0xe9e6ef, roughness: 0.45, metalness: 0.1 });
+  function counterBox(w, h, d, x, y, z, mat){
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+    m.position.set(x, y, z);
+    counter.add(m);
+    return m;
+  }
+  counterBox(2.0, 1.05, 0.6, 0, 0.525, 0, counterMat);
+  counterBox(2.02, 0.05, 0.62, 0, 1.03, 0, new THREE.MeshStandardMaterial({ color: 0xb88cf2, roughness: 0.3, metalness: 0.6, emissive: 0x6a3fb8, emissiveIntensity: 0.6 }));
+  counterBox(2.0, 0.04, 0.02, 0, 0.12, 0.305, new THREE.MeshBasicMaterial({ color: 0xb88cf2 }));   // toe-kick light strip
+  // front panel with the brand name, facing the aisle
+  const counterFace = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.2, 0.3),
+    new THREE.MeshBasicMaterial({ map: makeNeonTexture('WOCKSTAR', '#b88cf2', { font: '800 140px Arial, sans-serif' }), transparent: true, depthWrite: false })
   );
-  counterBody.position.y = 0.525;
-  counter.add(counterBody);
-  const counterTrim = new THREE.Mesh(
-    new THREE.BoxGeometry(2.02, 0.05, 0.62),
-    new THREE.MeshStandardMaterial({ color: 0xb88cf2, roughness: 0.3, metalness: 0.6, emissive: 0x6a3fb8, emissiveIntensity: 0.6 })
-  );
-  counterTrim.position.y = 1.03;
-  counter.add(counterTrim);
-  const registerBody = new THREE.Mesh(
-    new THREE.BoxGeometry(0.36, 0.24, 0.28),
-    new THREE.MeshStandardMaterial({ color: 0x0c0b0e, roughness: 0.4, metalness: 0.5 })
-  );
-  registerBody.position.set(-0.55, 1.18, 0);
-  counter.add(registerBody);
-  const registerScreen = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.26, 0.16),
+  counterFace.position.set(0, 0.62, 0.302);
+  counter.add(counterFace);
+  // register: cash drawer, angled till screen, customer pole display
+  counterBox(0.42, 0.1, 0.38, -0.45, 1.105, -0.02, darkMat);
+  const tillScreen = new THREE.Group();
+  tillScreen.position.set(-0.45, 1.3, -0.05);
+  tillScreen.rotation.x = -0.35;
+  counter.add(tillScreen);
+  const tillBack = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.25, 0.03), darkMat);
+  tillScreen.add(tillBack);
+  const tillFace = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.32, 0.21),
     new THREE.MeshBasicMaterial({ map: makeTextTexture('$0.00', { font: '700 40px Arial, sans-serif', bg: 'rgba(20,10,35,1)' }) })
   );
-  registerScreen.position.set(-0.55, 1.34, 0.145);
-  counter.add(registerScreen);
-  const registerLight = new THREE.PointLight(0xb88cf2, 6, 3, 2);
-  registerLight.position.set(-0.55, 1.5, 0);
+  tillFace.position.z = 0.016;
+  tillScreen.add(tillFace);
+  counterBox(0.03, 0.14, 0.03, -0.45, 1.2, -0.08, darkMat);   // screen stand
+  counterBox(0.02, 0.32, 0.02, -0.78, 1.22, 0.2, darkMat);    // pole display
+  const poleDisplay = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.2, 0.08),
+    new THREE.MeshBasicMaterial({ map: makeTextTexture('Thank you', { w: 256, h: 96, font: '700 34px Arial, sans-serif', fg: '#3fd0ff', bg: 'rgba(5,12,18,1)' }) })
+  );
+  poleDisplay.position.set(-0.78, 1.42, 0.215);
+  counter.add(poleDisplay);
+  // card reader + receipt printer
+  counterBox(0.09, 0.03, 0.16, -0.05, 1.07, 0.18, darkMat);
+  const readerScreen = new THREE.Mesh(new THREE.PlaneGeometry(0.06, 0.07), new THREE.MeshBasicMaterial({ color: 0x3fd0ff }));
+  readerScreen.rotation.x = -Math.PI / 2;
+  readerScreen.position.set(-0.05, 1.087, 0.15);
+  counter.add(readerScreen);
+  counterBox(0.16, 0.12, 0.2, 0.18, 1.115, -0.05, paleMat);
+  const receipt = new THREE.Mesh(new THREE.PlaneGeometry(0.07, 0.12), new THREE.MeshBasicMaterial({ color: 0xf6f4f8, side: THREE.DoubleSide }));
+  receipt.position.set(0.18, 1.22, 0.02);
+  receipt.rotation.x = -0.4;
+  counter.add(receipt);
+  // shopping bags waiting on the end of the counter
+  [[0.62, 0.04, 0x0c0b0e], [0.8, -0.1, 0xb88cf2]].forEach(([bx, bz, col], i) => {
+    const bag = counterBox(0.28, 0.34, 0.12, bx, 1.225, bz, new THREE.MeshStandardMaterial({ color: col, roughness: 0.6 }));
+    bag.rotation.y = i ? 0.25 : -0.1;
+    const handle = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.006, 6, 16, Math.PI), darkMat);
+    handle.position.y = 0.17;
+    bag.add(handle);
+  });
+  const registerLight = new THREE.PointLight(0xb88cf2, 8, 3.5, 2);
+  registerLight.position.set(-0.3, 1.8, 0.2);
   counter.add(registerLight);
-  colliders.push({ x: ROOM.maxX - 0.7, z: -3, radius: 1.0 });
+  const checkoutSign = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.4, 0.35),
+    new THREE.MeshBasicMaterial({ map: makeNeonTexture('CHECKOUT', '#3fd0ff', { font: '800 160px Arial, sans-serif' }), transparent: true, depthWrite: false })
+  );
+  checkoutSign.rotation.y = -Math.PI / 2;
+  checkoutSign.position.set(ROOM.maxX + 0.08, 2.75, COUNTER_Z);
+  scene.add(checkoutSign);
+  const counterHit = new THREE.Mesh(
+    new THREE.BoxGeometry(2.1, 1.6, 0.8),
+    new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false })
+  );
+  counterHit.position.y = 0.8;
+  counter.add(counterHit);
+  interactables.push({ kind: 'cart', hitbox: counterHit });
+  [-0.6, 0, 0.6].forEach((dz) => colliders.push({ x: ROOM.maxX - 0.7, z: COUNTER_Z + dz, radius: 0.75 }));
 
   // storefront facade: the front used to be an open hole into a black void. Now it's a
   // real shopfront - glass doors, display windows, neon over the door, a street outside.
@@ -1201,8 +1253,163 @@ import { GLTFLoader } from './assets/vendor/three/loaders/GLTFLoader.js';
   }
 
   addKiosk(-3.4, 1.6, 'About', 'about', 0xb88cf2);
-  addKiosk(3.4, 1.6, 'Drop Alerts', 'signup', 0xb88cf2);
-  addKiosk(3.4, -11.4, 'Info', 'info', 0x8d8894);
+  addKiosk(-1.9, -11.2, 'Drop Alerts', 'signup', 0xb88cf2);
+  addKiosk(1.9, -11.2, 'Info', 'info', 0x8d8894);
+
+  // wall shelving: stocked units between the posters on every wall. All the boxes go into
+  // one instanced mesh (plus one for the LED strips) so dozens of items cost two draw calls.
+  const shelfBoxes = [], shelfGlows = [];
+  const _m4 = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _p = new THREE.Vector3(), _s3 = new THREE.Vector3();
+  let seed = 7;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const clothColors = [0x1a1622, 0x2a2533, 0x5a3690, 0x6b6a60, 0xb88cf2, 0xd9d4e6, 0x3a3f58, 0x7a2f5f];
+  const boxColors = [0x121015, 0xe9e6ef, 0x5a3690, 0x2a2533, 0x8a1f3c];
+  function addShelfUnit(cx, cz, rotY, w){
+    const base = new THREE.Matrix4().compose(new THREE.Vector3(cx, 0, cz), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, rotY, 0)), new THREE.Vector3(1, 1, 1));
+    // x runs along the wall, z comes out of the wall into the room
+    const box = (x, y, z, sx, sy, sz, color, ry, list) => {
+      _m4.compose(_p.set(x, y, z), _q.setFromEuler(_e.set(0, ry || 0, 0)), _s3.set(sx, sy, sz));
+      (list || shelfBoxes).push({ m: base.clone().multiply(_m4), color });
+    };
+    const H = 2.75;
+    box(0, H / 2, 0.015, w, H, 0.03, 0x221535);                       // back panel
+    [-1, 1].forEach((s) => box(s * w / 2, H / 2, 0.19, 0.04, H, 0.38, 0x14101c));
+    box(0, 0.06, 0.19, w, 0.12, 0.36, 0x14101c);                      // plinth
+    box(0, H - 0.02, 0.19, w + 0.04, 0.04, 0.38, 0x14101c);           // top cap
+    const levels = [0.12, 0.72, 1.32, 1.92];
+    levels.forEach((y, li) => {
+      if (li > 0) box(0, y - 0.015, 0.19, w - 0.04, 0.03, 0.36, 0x14101c);
+      box(0, (li < levels.length - 1 ? levels[li + 1] : H - 0.04) - 0.045, 0.34, w - 0.1, 0.012, 0.015, 0xf0e2ff, 0, shelfGlows);
+      let x = -w / 2 + 0.08;
+      const shoeShelf = li === 3 || (li === 0 && rnd() < 0.5);
+      while (x < w / 2 - 0.36) {
+        if (rnd() < 0.12) { x += 0.14; continue; }
+        if (shoeShelf) {
+          const n = 1 + Math.floor(rnd() * 3), col = boxColors[Math.floor(rnd() * boxColors.length)];
+          const lid = boxColors[Math.floor(rnd() * boxColors.length)];
+          for (let k = 0; k < n; k++) {
+            const by = y + k * 0.125;
+            box(x + 0.16, by + 0.055, 0.17, 0.32, 0.11, 0.2, col, (rnd() - 0.5) * 0.06);
+            box(x + 0.16, by + 0.117, 0.17, 0.325, 0.014, 0.205, lid);
+          }
+          x += 0.37;
+        } else {
+          const n = 2 + Math.floor(rnd() * 4), col = clothColors[Math.floor(rnd() * clothColors.length)];
+          for (let k = 0; k < n; k++) {
+            const tint = k % 2 && rnd() < 0.4 ? clothColors[Math.floor(rnd() * clothColors.length)] : col;
+            box(x + 0.15, y + 0.03 + k * 0.058, 0.2 + (rnd() - 0.5) * 0.02, 0.3, 0.052, 0.26, tint, (rnd() - 0.5) * 0.08);
+          }
+          x += 0.35;
+        }
+      }
+    });
+    // keep the camera from walking into the unit
+    const cos = Math.cos(rotY), sin = Math.sin(rotY);
+    for (let lx = -w / 2 + 0.3; lx <= w / 2 - 0.3 + 1e-6; lx += 0.45) {
+      colliders.push({ x: cx + lx * cos + 0.2 * sin, z: cz - lx * sin + 0.2 * cos, radius: 0.55 });
+    }
+  }
+  const WALL_L = ROOM.minX - 0.09, WALL_R = ROOM.maxX + 0.09, WALL_B = ROOM.wallZ + 0.01;
+  addShelfUnit(WALL_L, -6.85, Math.PI / 2, 1.9);
+  addShelfUnit(WALL_L, -11.05, Math.PI / 2, 1.9);
+  addShelfUnit(WALL_R, -2.75, -Math.PI / 2, 1.9);
+  addShelfUnit(WALL_R, -11.05, -Math.PI / 2, 1.9);
+  addShelfUnit(-2.95, WALL_B, 0, 1.5);
+  addShelfUnit(2.95, WALL_B, 0, 1.5);
+  function bakeInstances(list, material){
+    const mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), material, list.length);
+    const col = new THREE.Color();
+    list.forEach((b, i) => { mesh.setMatrixAt(i, b.m); mesh.setColorAt(i, col.setHex(b.color)); });
+    mesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    scene.add(mesh);
+  }
+  bakeInstances(shelfBoxes, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8, metalness: 0.05 }));
+  bakeInstances(shelfGlows, new THREE.MeshBasicMaterial({ color: 0xffffff }));
+
+  // ceiling speakers: flush round grilles in two rows, plus box speakers up in the corners
+  const grilleTex = (() => {
+    const c = document.createElement('canvas');
+    c.width = c.height = 128;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#d9d6de';
+    ctx.fillRect(0, 0, 128, 128);
+    ctx.fillStyle = '#2a2730';
+    for (let y = 4; y < 128; y += 8) for (let x = 4 + (y / 8 % 2) * 4; x < 128; x += 8) { ctx.beginPath(); ctx.arc(x, y, 2.2, 0, Math.PI * 2); ctx.fill(); }
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  })();
+  const grilleMat = new THREE.MeshStandardMaterial({ map: grilleTex, roughness: 0.7, metalness: 0.2 });
+  const speakerTrimMat = new THREE.MeshStandardMaterial({ color: 0xeeeaf2, roughness: 0.4, metalness: 0.3 });
+  [-1.6, 1.6].forEach((sx) => [1.0, -4.0, -8.0, -11.9].forEach((sz) => {
+    const grille = new THREE.Mesh(new THREE.CircleGeometry(0.17, 28), grilleMat);
+    grille.rotation.x = Math.PI / 2;
+    grille.position.set(sx, ROOM.height - 0.004, sz);
+    const trim = new THREE.Mesh(new THREE.RingGeometry(0.17, 0.205, 28), speakerTrimMat);
+    trim.rotation.x = Math.PI / 2;
+    trim.position.set(sx, ROOM.height - 0.006, sz);
+    scene.add(grille, trim);
+  }));
+  [[ROOM.minX, -11.5, 1], [ROOM.maxX, -11.5, -1], [ROOM.minX, -0.2, 1]].forEach(([wx, wz, s]) => {
+    const spk = new THREE.Group();
+    spk.position.set(wx + s * 0.2, 3.35, wz);
+    spk.rotation.set(0, s * Math.PI / 2, 0);
+    spk.rotateX(0.35);   // tilt down toward the floor
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.42, 0.24), darkMat);
+    const front = new THREE.Mesh(new THREE.PlaneGeometry(0.24, 0.38), grilleMat);
+    front.position.z = 0.121;
+    spk.add(body, front);
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, 0.16), darkMat);
+    arm.position.set(wx + s * 0.05, 3.35, wz);
+    arm.rotation.y = s * Math.PI / 2;
+    scene.add(spk, arm);
+  });
+
+  // security: ceiling domes plus wall-mounted cameras that slowly sweep the floor
+  const cctvHeads = [];
+  const smokedMat = new THREE.MeshStandardMaterial({ color: 0x0a0a10, roughness: 0.08, metalness: 0.9, transparent: true, opacity: 0.85 });
+  const ledMat = new THREE.MeshBasicMaterial({ color: 0xff2a3a });
+  [[0, 0.4], [0, -9.5]].forEach(([dx, dz]) => {
+    const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.04, 24), paleMat);
+    ring.position.set(dx, ROOM.height - 0.02, dz);
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(0.11, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2), smokedMat);
+    dome.rotation.x = Math.PI;
+    dome.position.set(dx, ROOM.height - 0.04, dz);
+    scene.add(ring, dome);
+  });
+  [
+    [ROOM.minX, 2.9, 1, -4], [ROOM.maxX, 2.9, -1, -4],
+    [ROOM.minX, -12.7, 1, -5], [ROOM.maxX, -12.7, -1, -5],
+  ].forEach(([wx, wz, s, lookZ], i) => {
+    const mount = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.14, 0.14), paleMat);
+    mount.position.set(wx - s * 0.08, 3.55, wz);
+    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.22, 8), paleMat);
+    arm.rotation.z = Math.PI / 2;
+    arm.position.set(wx + s * 0.03, 3.55, wz);
+    scene.add(mount, arm);
+    const pivot = new THREE.Group();
+    pivot.position.set(wx + s * 0.17, 3.55, wz);
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.1, 0.28), paleMat);
+    body.position.z = 0.08;
+    const hood = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.012, 0.33), paleMat);
+    hood.position.set(0, 0.058, 0.1);
+    const lens = new THREE.Mesh(new THREE.CircleGeometry(0.04, 18), smokedMat);
+    lens.position.z = 0.221;
+    const led = new THREE.Mesh(new THREE.SphereGeometry(0.008, 8, 6), ledMat);
+    led.position.set(0.035, -0.03, 0.222);
+    pivot.add(body, hood, lens, led);
+    scene.add(pivot);
+    cctvHeads.push({ pivot, led, baseX: -s * 1.5, baseZ: lookZ, phase: i * 1.9 });
+  });
+  const cctvTarget = new THREE.Vector3();
+  const cctvSign = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.34, 0.1),
+    new THREE.MeshBasicMaterial({ map: makeTextTexture('CCTV in operation', { w: 512, h: 150, font: '700 44px Arial, sans-serif', fg: '#ffd84a', bg: 'rgba(12,10,14,0.95)' }) })
+  );
+  cctvSign.rotation.y = Math.PI;
+  cctvSign.position.set(-1.175, 1.75, FZ - 0.08);
+  scene.add(cctvSign);
 
   // 6 garments on pedestals along both side walls, aisle down the middle
   const N = window.PIECES.length;
@@ -1329,6 +1536,98 @@ import { GLTFLoader } from './assets/vendor/three/loaders/GLTFLoader.js';
       rackItems.push({ id, item, hitbox, phase: k * 1.7 + r.z, lift: 0 });
     });
   });
+
+  // mannequins wearing full looks: a pair on a lit island mid-store, a pair in the front windows.
+  // Garments are fitted onto a simple display form; flat-lay meshes get a little extra depth
+  // so they wrap the form instead of the form poking through.
+  const formMat = new THREE.MeshStandardMaterial({ color: 0xe8e4ee, roughness: 0.35, metalness: 0.05 });
+  function fitGarment(id, fit){
+    const g = garmentRoots.find(x => x.id === id);
+    if (!g || !g.raw) return null;
+    const garment = g.raw.clone(true);
+    const raw = new THREE.Box3().setFromObject(garment).getSize(new THREE.Vector3());
+    if (id !== 'cap') {
+      if (raw.y <= raw.x && raw.y <= raw.z) garment.rotation.x = -Math.PI / 2;
+      else if (raw.x <= raw.z) garment.rotation.y = Math.PI / 2;
+    }
+    const wrap = new THREE.Group();
+    wrap.add(garment);
+    let box = new THREE.Box3().setFromObject(wrap);
+    const sz = box.getSize(new THREE.Vector3());
+    if (fit.uniform) {
+      wrap.scale.setScalar(fit.uniform / (Math.max(sz.x, sz.z) || 1));
+    } else {
+      const s = fit.h / (sz.y || 1);
+      const sx = Math.min(s, fit.maxW / (sz.x || 1));
+      const sz2 = Math.min(Math.max(s, fit.minD / (sz.z || 1)), fit.maxD / (sz.z || 1));
+      wrap.scale.set(sx, s, sz2);
+    }
+    box = new THREE.Box3().setFromObject(wrap);
+    const c = box.getCenter(new THREE.Vector3());
+    wrap.position.set(-c.x, fit.top - box.max.y, (fit.z || 0) - c.z);
+    if (fit.bottom !== undefined) wrap.position.y = fit.bottom - box.min.y;
+    return wrap;
+  }
+  function addMannequin(x, z, rotY, look, baseY){
+    const m = new THREE.Group();
+    m.position.set(x, baseY || 0, z);
+    m.rotation.y = rotY;
+    scene.add(m);
+    const part = (geo, px, py, pz, sx, sy, sz) => {
+      const mesh = new THREE.Mesh(geo, formMat);
+      mesh.position.set(px, py, pz);
+      if (sx) mesh.scale.set(sx, sy, sz);
+      m.add(mesh);
+      return mesh;
+    };
+    const stand = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.24, 0.03, 28), chromeMat);
+    stand.position.y = 0.015;
+    m.add(stand);
+    // "ghost" form: no solid torso - the garment itself makes the body, so a dished
+    // flat-lay mesh never shows a white torso through it. Legs only where they'd show.
+    if (look.bottom !== 'denim') {
+      [-1, 1].forEach((s) => part(new THREE.CylinderGeometry(0.05, 0.04, 0.62, 12), s * 0.085, 0.34, 0));
+    } else {
+      part(new THREE.CylinderGeometry(0.015, 0.015, 0.3, 8), 0, 0.15, 0);                 // stand rod
+    }
+    part(new THREE.CylinderGeometry(0.042, 0.048, 0.16, 10), 0, 1.55, 0);                  // neck
+    part(new THREE.SphereGeometry(0.1, 20, 14), 0, 1.72, 0.01, 0.82, 1.08, 0.95);          // head
+    const top = fitGarment(look.top, { top: 1.58, h: 0.72, maxW: 0.66, minD: 0.3, maxD: 0.38 });
+    const bottom = look.bottom === 'denim'
+      ? fitGarment('denim', { top: 1.0, h: 0.95, maxW: 0.42, minD: 0.2, maxD: 0.26 })
+      : fitGarment('shorts', { top: 1.0, h: 0.46, maxW: 0.44, minD: 0.22, maxD: 0.26 });
+    [top, bottom].forEach((w) => { if (w) m.add(w); });
+    if (look.cap) {
+      const cap = fitGarment('cap', { uniform: 0.25, bottom: 1.765, top: 0 });
+      if (cap) m.add(cap);
+    }
+    const hitbox = new THREE.Mesh(
+      new THREE.BoxGeometry(0.6, 1.85, 0.5),
+      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false })
+    );
+    hitbox.position.y = 0.95;
+    m.add(hitbox);
+    interactables.push({ kind: 'product', id: look.top, hitbox });
+    colliders.push({ x, z, radius: 0.55 });
+    return m;
+  }
+  // center island
+  const ISLAND_Z = -6.85;
+  const island = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.16, 1.0), counterMat);
+  island.position.set(0, 0.08, ISLAND_Z);
+  const islandGlow = new THREE.Mesh(new THREE.BoxGeometry(2.24, 0.025, 1.04), new THREE.MeshBasicMaterial({ color: 0xb88cf2 }));
+  islandGlow.position.set(0, 0.02, ISLAND_Z);
+  scene.add(island, islandGlow);
+  const islandSpot = new THREE.SpotLight(0xfff0ff, 30, 7, Math.PI / 6, 0.5, 1.4);
+  islandSpot.position.set(0, 3.7, ISLAND_Z + 1.2);
+  islandSpot.target.position.set(0, 1.0, ISLAND_Z);
+  scene.add(islandSpot, islandSpot.target);
+  addMannequin(-0.55, ISLAND_Z, 0.12, { top: 'hoodie', bottom: 'shorts', cap: true }, 0.16);
+  addMannequin(0.55, ISLAND_Z, -0.12, { top: 'longsleeve', bottom: 'denim' }, 0.16);
+  colliders.push({ x: 0, z: ISLAND_Z, radius: 0.75 });
+  // front windows, turned to face into the store
+  addMannequin(-2.7, 2.85, Math.atan2(0.35, -1), { top: 'longsleeve', bottom: 'shorts' });
+  addMannequin(2.7, 2.85, Math.atan2(-0.35, -1), { top: 'hoodie', bottom: 'denim', cap: true });
 
   // bake a static environment map so the glossy floor actually reflects the room's
   // color - scoped to just the floor material, not scene.environment, which would
@@ -1477,7 +1776,7 @@ import { GLTFLoader } from './assets/vendor/three/loaders/GLTFLoader.js';
   const raycaster = new THREE.Raycaster();
   let hovered = null; // the currently-aimed-at interactable, or null
 
-  const KIOSK_LABELS = { about: 'About', signup: 'Drop Alerts', info: 'Info' };
+  const KIOSK_LABELS = { about: 'About', signup: 'Drop Alerts', info: 'Info', cart: 'Checkout · view cart' };
   function pickInteractable(){
     raycaster.setFromCamera({ x: 0, y: 0 }, camera);
     const hits = raycaster.intersectObjects(interactables.map(x => x.hitbox), false);
@@ -1486,10 +1785,13 @@ import { GLTFLoader } from './assets/vendor/three/loaders/GLTFLoader.js';
   }
   function tryInteract(){
     if (!hovered) return;
+    // free the mouse so the panel that opens can actually be clicked
+    if (document.pointerLockElement === canvas) document.exitPointerLock();
     if (hovered.kind === 'product') window.openProductModal(hovered.id);
     else if (hovered.kind === 'about') window.openAboutModal();
     else if (hovered.kind === 'signup') window.openSignupModal();
     else if (hovered.kind === 'info') window.openInfoModal();
+    else if (hovered.kind === 'cart') window.openCart();
   }
 
   canvas.addEventListener('click', () => {
@@ -1594,6 +1896,13 @@ import { GLTFLoader } from './assets/vendor/three/loaders/GLTFLoader.js';
       ri.lift += (targetLift - ri.lift) * Math.min(1, dt * 8);
       const sway = reduceMotion ? 0 : Math.sin(t * 0.9 + ri.phase) * 0.03;
       ri.item.rotation.x = sway - ri.lift * 0.22;
+    });
+    // security cameras pan slowly back and forth; recording light blinks
+    cctvHeads.forEach((c) => {
+      const sweep = reduceMotion ? 0 : Math.sin(t * 0.35 + c.phase) * 2.2;
+      cctvTarget.set(c.baseX + sweep, 0.6, c.baseZ + (reduceMotion ? 0 : Math.cos(t * 0.35 + c.phase) * 1.5));
+      c.pivot.lookAt(cctvTarget);
+      c.led.visible = (t + c.phase) % 1.6 < 0.9;
     });
     renderer.render(scene, camera);
   }
