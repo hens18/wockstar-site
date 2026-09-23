@@ -1086,7 +1086,7 @@ import { GLTFLoader } from './assets/vendor/three/loaders/GLTFLoader.js';
       new THREE.PlaneGeometry(1, 0.3),
       new THREE.MeshBasicMaterial({ map: makeTextTexture(p.cat, { font: '700 44px Arial, sans-serif' }), transparent: true })
     );
-    catSign.position.set(x, 1.7, z);
+    catSign.position.set(x, 2.4, z);
     catSign.rotation.y = side > 0 ? Math.PI : 0;
     scene.add(catSign);
 
@@ -1099,7 +1099,7 @@ import { GLTFLoader } from './assets/vendor/three/loaders/GLTFLoader.js';
     // generous invisible hitbox for reliable raycasting - real garment geometry can be
     // thin/irregular (single-photo 3D reconstruction), which makes exact-mesh picking unreliable
     const hitbox = new THREE.Mesh(
-      new THREE.BoxGeometry(0.85, 1.2, 0.85),
+      new THREE.BoxGeometry(0.65, 1.1, 0.65),
       new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false })
     );
     hitbox.position.y = 0.5;
@@ -1119,8 +1119,12 @@ import { GLTFLoader } from './assets/vendor/three/loaders/GLTFLoader.js';
       const box = new THREE.Box3().setFromObject(obj);
       const size = new THREE.Vector3();
       box.getSize(size);
-      const maxDim = Math.max(size.x, size.y, size.z) || 1;
-      const scale = 0.85 / maxDim;
+      // cap horizontal footprint and height independently - a badly-reconstructed
+      // mesh that ends up lying flat and wide (rather than hanging upright) still
+      // needs to fit on the pedestal instead of spreading into neighboring signage
+      const horizExtent = Math.max(size.x, size.z) || 1;
+      const vertExtent = size.y || 1;
+      const scale = Math.min(0.55 / horizExtent, 0.85 / vertExtent);
       obj.scale.setScalar(scale);
       const center = new THREE.Vector3();
       box.getCenter(center);
