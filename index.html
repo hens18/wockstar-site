@@ -82,6 +82,8 @@ a{color:inherit}
 .hero-crosshair.hit{background:var(--lav);transform:scale(2.2)}
 .hero-hint{position:absolute;left:50%;bottom:18px;z-index:3;transform:translateX(-50%);font-size:12px;color:var(--chrome);background:rgba(10,9,12,.55);padding:7px 14px;border-radius:999px;opacity:0;transition:opacity .5s;pointer-events:none;white-space:nowrap}
 .hero-hint.show{opacity:1}
+.skip-shop{position:absolute;right:22px;top:calc(22px + env(safe-area-inset-top,0px) + 56px);z-index:4;background:rgba(10,9,12,.55);border:1px solid #3a3641;color:var(--chrome);font:inherit;font-size:13px;font-weight:600;padding:9px 16px;border-radius:999px;cursor:pointer;transition:background .2s,color .2s}
+.skip-shop:hover{background:rgba(10,9,12,.8);color:var(--bone)}
 .hero-joystick{position:absolute;z-index:4;width:96px;height:96px;margin:-48px;border-radius:50%;border:1px solid rgba(239,237,243,.35);background:rgba(10,9,12,.25);opacity:0;pointer-events:none}
 .hero-joystick.show{opacity:1}
 .hero-joystick .knob{position:absolute;left:50%;top:50%;width:40px;height:40px;margin:-20px;border-radius:50%;background:rgba(239,237,243,.5)}
@@ -239,6 +241,7 @@ a{color:inherit}
       <div class="hero-label" id="hero-label"></div>
       <div class="hero-crosshair" id="hero-crosshair"></div>
       <div class="hero-hint" id="hero-hint"></div>
+      <button class="skip-shop" id="skip-shop" type="button">Skip to shop &rarr;</button>
       <div class="hero-joystick" id="hero-joystick"><div class="knob" id="hero-joystick-knob"></div></div>
       <button class="hero-interact" id="hero-interact" type="button" aria-label="View item">View</button>
     </div>
@@ -870,6 +873,102 @@ import { GLTFLoader } from './assets/vendor/three/loaders/GLTFLoader.js';
   rightWall.position.x = ROOM.maxX + 0.1;
   scene.add(rightWall);
 
+  // interactables: unified list the raycaster/crosshair system checks - products and kiosks alike
+  const interactables = [];
+  // colliders: keeps the player from walking into/through a pedestal or kiosk and clipping the mesh
+  const colliders = [];
+
+  // detail pass: trim, beams and corner posts so the room reads as built, not a bare box
+  const trimMat = new THREE.MeshStandardMaterial({ color: 0x0c0b0e, roughness: 0.3, metalness: 0.7, emissive: 0x6a3fb8, emissiveIntensity: 0.5 });
+  const structMat = new THREE.MeshStandardMaterial({ color: 0x120c1f, roughness: 0.5, metalness: 0.4 });
+
+  const baseboardL = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.18, sideDepth), trimMat);
+  baseboardL.position.set(ROOM.minX + 0.03, 0.09, (ROOM.entranceZ + ROOM.wallZ) / 2);
+  scene.add(baseboardL);
+  const baseboardR = baseboardL.clone();
+  baseboardR.position.x = ROOM.maxX - 0.03;
+  scene.add(baseboardR);
+  const baseboardBack = new THREE.Mesh(new THREE.BoxGeometry(ROOM.width, 0.18, 0.06), trimMat);
+  baseboardBack.position.set(0, 0.09, ROOM.wallZ + 0.03);
+  scene.add(baseboardBack);
+
+  for (let bz = -2; bz > ROOM.wallZ + 1; bz -= 4) {
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(ROOM.width, 0.14, 0.3), structMat);
+    beam.position.set(0, ROOM.height - 0.18, bz);
+    scene.add(beam);
+  }
+
+  [[ROOM.minX + 0.15, ROOM.wallZ + 0.15], [ROOM.maxX - 0.15, ROOM.wallZ + 0.15]].forEach(([px, pz]) => {
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.22, ROOM.height, 0.22), structMat);
+    post.position.set(px, ROOM.height / 2, pz);
+    scene.add(post);
+  });
+
+  // entrance facade: header beam + flanking posts so the doorway reads as an opening, not just where the walls stop
+  const entranceHeader = new THREE.Mesh(new THREE.BoxGeometry(ROOM.width + 0.4, 0.3, 0.3), structMat);
+  entranceHeader.position.set(0, ROOM.height + 0.1, ROOM.entranceZ);
+  scene.add(entranceHeader);
+  [ROOM.minX - 0.1, ROOM.maxX + 0.1].forEach((px) => {
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.22, ROOM.height + 0.3, 0.22), structMat);
+    post.position.set(px, (ROOM.height + 0.3) / 2, ROOM.entranceZ);
+    scene.add(post);
+  });
+
+  // visible housings for the light sources - a glow with no visible fixture is what read as "LED box"
+  function addFixture(x, y, z, color){
+    const housing = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.16, 0.2, 0.12, 12),
+      new THREE.MeshStandardMaterial({ color: 0x0c0b0e, roughness: 0.35, metalness: 0.6 })
+    );
+    housing.position.set(x, y, z);
+    scene.add(housing);
+    const lens = new THREE.Mesh(
+      new THREE.CircleGeometry(0.13, 16),
+      new THREE.MeshBasicMaterial({ color })
+    );
+    lens.rotation.x = Math.PI / 2;
+    lens.position.set(x, y - 0.061, z);
+    scene.add(lens);
+  }
+  addFixture(0, 3.6, -2, 0xc79bff);
+  addFixture(0, 3.2, ROOM.wallZ + 2, 0x8a4fff);
+  addFixture(ROOM.minX + 1, 2.4, -6, 0xff3fb0);
+  addFixture(ROOM.maxX - 1, 2.4, -6, 0x3fd0ff);
+
+  // checkout counter + register - decorative for now, no cashier yet
+  const counter = new THREE.Group();
+  counter.position.set(ROOM.maxX - 0.7, 0, -3);
+  counter.rotation.y = -Math.PI / 2;
+  scene.add(counter);
+  const counterBody = new THREE.Mesh(
+    new THREE.BoxGeometry(2.0, 1.05, 0.6),
+    new THREE.MeshStandardMaterial({ color: 0x14101c, roughness: 0.35, metalness: 0.5 })
+  );
+  counterBody.position.y = 0.525;
+  counter.add(counterBody);
+  const counterTrim = new THREE.Mesh(
+    new THREE.BoxGeometry(2.02, 0.05, 0.62),
+    new THREE.MeshStandardMaterial({ color: 0xb88cf2, roughness: 0.3, metalness: 0.6, emissive: 0x6a3fb8, emissiveIntensity: 0.6 })
+  );
+  counterTrim.position.y = 1.03;
+  counter.add(counterTrim);
+  const registerBody = new THREE.Mesh(
+    new THREE.BoxGeometry(0.36, 0.24, 0.28),
+    new THREE.MeshStandardMaterial({ color: 0x0c0b0e, roughness: 0.4, metalness: 0.5 })
+  );
+  registerBody.position.set(-0.55, 1.18, 0);
+  counter.add(registerBody);
+  const registerScreen = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.26, 0.16),
+    new THREE.MeshBasicMaterial({ map: makeTextTexture('$0.00', { font: '700 40px Arial, sans-serif', bg: 'rgba(20,10,35,1)' }) })
+  );
+  registerScreen.position.set(-0.55, 1.34, 0.145);
+  counter.add(registerScreen);
+  const registerLight = new THREE.PointLight(0xb88cf2, 6, 3, 2);
+  registerLight.position.set(-0.55, 1.5, 0);
+  counter.add(registerLight);
+  colliders.push({ x: ROOM.maxX - 0.7, z: -3, radius: 1.0 });
+
   const crestImg = document.querySelector('.crest');
   if (crestImg && crestImg.src) {
     new THREE.TextureLoader().load(crestImg.src, (tex) => {
@@ -922,11 +1021,6 @@ import { GLTFLoader } from './assets/vendor/three/loaders/GLTFLoader.js';
       scene.add(group);
     });
   }
-
-  // interactables: unified list the raycaster/crosshair system checks - products and kiosks alike
-  const interactables = [];
-  // colliders: keeps the player from walking into/through a pedestal or kiosk and clipping the mesh
-  const colliders = [];
 
   function addKiosk(x, z, label, kind, color){
     const base = new THREE.Mesh(
@@ -1038,8 +1132,27 @@ import { GLTFLoader } from './assets/vendor/three/loaders/GLTFLoader.js';
     }, undefined, () => resolve());
   })));
 
+  // bake a static environment map so the glossy floor actually reflects the room's
+  // color - scoped to just the floor material, not scene.environment, which would
+  // wash out every surface in the room with extra ambient light on top of the fixtures
+  try {
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    const envTex = pmrem.fromScene(scene, 0.04).texture;
+    floorMat.envMap = envTex;
+    floorMat.envMapIntensity = 0.35;
+    floorMat.needsUpdate = true;
+    pmrem.dispose();
+  } catch (e) { /* non-essential polish - skip silently if unsupported */ }
+
   canvas.classList.add('ready');
   document.body.classList.add('is-3d-mode');
+
+  // let anyone who doesn't want to walk around jump straight to a normal product list
+  document.getElementById('skip-shop').addEventListener('click', () => {
+    if (document.pointerLockElement === canvas) document.exitPointerLock();
+    document.body.classList.remove('is-3d-mode');
+    document.getElementById('drop').scrollIntoView({ behavior: 'smooth' });
+  });
 
   function easeOutCubic(x){ return 1 - Math.pow(1 - x, 3); }
   let panT = SKIP_INTRO_PAN || reduceMotion ? 1 : 0;
@@ -1163,7 +1276,7 @@ import { GLTFLoader } from './assets/vendor/three/loaders/GLTFLoader.js';
   let lastT = null;
   function animate(now){
     requestAnimationFrame(animate);
-    const dt = lastT ? Math.min(0.05, (now - lastT) / 1000) : 0.016;
+    const dt = lastT ? Math.min(0.2, (now - lastT) / 1000) : 0.016;
     lastT = now;
 
     if (panT < 1) {
