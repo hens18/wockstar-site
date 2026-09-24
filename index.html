@@ -68,6 +68,8 @@ a{text-underline-offset:.2em}
 #hero-3d.walking{cursor:none;touch-action:none}
 @keyframes push{from{transform:scale(1.12)}to{transform:scale(1)}}
 .hero::after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(to top,#000 4%,rgba(0,0,0,.55) 38%,rgba(0,0,0,.15) 70%,rgba(0,0,0,.4))}
+.hero::after{transition:opacity .5s}
+.hero.walking::after{opacity:.28}   /* the text gradient only matters while the headline is showing */
 .hero-copy{position:relative;z-index:2;width:100%;padding:0 clamp(18px,4vw,48px) clamp(36px,7vh,80px);transition:opacity .4s}
 .hero.walking .hero-copy{opacity:0;pointer-events:none}
 .wordmark{margin:0;font-weight:800;font-size:clamp(34px,7.5vw,120px);line-height:.86;letter-spacing:-.01em;text-transform:uppercase;font-variation-settings:"wdth" 125;animation:widen 2.2s cubic-bezier(.2,.7,.1,1) both}
@@ -1146,6 +1148,14 @@ let storeStarting = null;
 window.startStore3D = () => storeStarting || (storeStarting = (async () => {
   const THREE = await import('three');
   const { GLTFLoader } = await import('./assets/vendor/three/loaders/GLTFLoader.js');
+  const [{ EffectComposer }, { RenderPass }, { UnrealBloomPass }, { OutputPass }, { ShaderPass }, { RoundedBoxGeometry }] = await Promise.all([
+    import('./assets/vendor/three/postprocessing/EffectComposer.js'),
+    import('./assets/vendor/three/postprocessing/RenderPass.js'),
+    import('./assets/vendor/three/postprocessing/UnrealBloomPass.js'),
+    import('./assets/vendor/three/postprocessing/OutputPass.js'),
+    import('./assets/vendor/three/postprocessing/ShaderPass.js'),
+    import('./assets/vendor/three/geometries/RoundedBoxGeometry.js'),
+  ]);
   const canvas = document.getElementById('hero-3d');
   const heroMedia = document.getElementById('hero-media');
   const label = document.getElementById('hero-label');
@@ -1182,7 +1192,7 @@ window.startStore3D = () => storeStarting || (storeStarting = (async () => {
   const EYE_Y = 1.65;
 
   const scene = new THREE.Scene();
-  scene.fog = new THREE.FogExp2(0x160b2e, 0.038);
+  scene.fog = new THREE.FogExp2(0x0d0a13, 0.02);   // thin neutral haze, not a purple wash
 
   const camera = new THREE.PerspectiveCamera(52, 1, 0.1, 100);
   camera.rotation.order = 'YXZ';
@@ -1195,29 +1205,59 @@ window.startStore3D = () => storeStarting || (storeStarting = (async () => {
   camera.lookAt(SKIP_INTRO_PAN || reduceMotion ? lookTarget : new THREE.Vector3(0, 1, 0));
 
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  const lowPower = isTouch || (navigator.hardwareConcurrency || 8) <= 4;
+  renderer.setPixelRatio(Math.min(devicePixelRatio, lowPower ? 1.5 : 2));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
+  // filmic response: highlights roll off instead of clipping, colour reads like a photo
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.2;
+
+  // camera finish: multisampled HDR render -> soft bloom on the neons and LEDs -> vignette
+  // and fine grain -> tone map. Falls back to a plain render if the GPU can't do it.
+  let composer = null, finishPass = null;
+  try {
+    const rt = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: renderer.capabilities.isWebGL2 ? 4 : 0 });
+    composer = new EffectComposer(renderer, rt);
+    composer.addPass(new RenderPass(scene, camera));
+    composer.addPass(new UnrealBloomPass(new THREE.Vector2(256, 256), 0.55, 0.45, 1.0));
+    finishPass = new ShaderPass({
+      uniforms: { tDiffuse: { value: null }, uTime: { value: 0 } },
+      vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+      fragmentShader: `uniform sampler2D tDiffuse; uniform float uTime; varying vec2 vUv;
+        void main(){
+          vec4 c = texture2D(tDiffuse, vUv);
+          float v = smoothstep(0.9, 0.3, length((vUv - 0.5) * vec2(1.15, 1.0)));
+          c.rgb *= mix(0.6, 1.0, v);
+          float n = fract(sin(dot(vUv * vec2(1237.1, 873.7) + uTime, vec2(12.9898, 78.233))) * 43758.5453);
+          c.rgb += (n - 0.5) * 0.03 * (c.rgb + 0.04);
+          gl_FragColor = c;
+        }`,
+    });
+    composer.addPass(finishPass);
+    composer.addPass(new OutputPass());
+  } catch (e) { composer = null; }
   function resize(){
     const w = heroMedia.clientWidth, h = heroMedia.clientHeight;
     if (!w || !h) return;
     renderer.setSize(w, h, false);
+    if (composer) { composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(w, h); }
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
   }
   resize();
   addEventListener('resize', resize);
 
-  scene.add(new THREE.HemisphereLight(0xb388ff, 0x2a1145, 0.85));
-  const key = new THREE.PointLight(0xc79bff, 42, 24, 2);
+  scene.add(new THREE.HemisphereLight(0xc9c0d6, 0x16121c, 0.38));   // low fill so the fixtures actually shape the room
+  const key = new THREE.PointLight(0xffe4cc, 40, 24, 2);
   key.position.set(0, 3.6, -2);
   scene.add(key);
-  const rim = new THREE.PointLight(0x8a4fff, 34, 24, 2);
+  const rim = new THREE.PointLight(0xb89cf0, 24, 24, 2);
   rim.position.set(0, 3.2, ROOM.wallZ + 2);
   scene.add(rim);
-  const accent1 = new THREE.PointLight(0xff3fb0, 20, 14, 2);
+  const accent1 = new THREE.PointLight(0xff5fc0, 6, 9, 2);
   accent1.position.set(ROOM.minX + 1, 3.3, -6);
   scene.add(accent1);
-  const accent2 = new THREE.PointLight(0x3fd0ff, 18, 14, 2);
+  const accent2 = new THREE.PointLight(0x5fd8ff, 5, 9, 2);
   accent2.position.set(ROOM.maxX - 1, 3.3, -6);
   scene.add(accent2);
 
@@ -1281,8 +1321,43 @@ window.startStore3D = () => storeStarting || (storeStarting = (async () => {
     ctx.fillStyle = 'rgba(20,16,24,0.55)';   // tile seams: 4 x 4 tiles per texture
     for (let k = 0; k <= 4; k++) { ctx.fillRect(k * S / 4 - 1, 0, 2, S); ctx.fillRect(0, k * S / 4 - 1, S, 2); }
   }, 10 / 4.8, 16.4 / 4.8);
-  const floorMat = new THREE.MeshStandardMaterial({ color: 0x3a2a58, map: concreteTex, roughness: 0.22, metalness: 0.5 });
-  const wallMat = new THREE.MeshStandardMaterial({ color: 0x5a3f7c, map: stoneTex, roughness: 0.75, metalness: 0.05 });
+  // relief maps derived from the same canvases, so light rakes across the stone and concrete
+  function heightToNormal(srcCanvas, size, strength, repeatX, repeatY){
+    const c = document.createElement('canvas'); c.width = c.height = size;
+    const x = c.getContext('2d');
+    x.drawImage(srcCanvas, 0, 0, size, size);
+    const src = x.getImageData(0, 0, size, size).data;
+    const out = x.createImageData(size, size);
+    const hgt = (i, j) => src[(((j + size) % size) * size + ((i + size) % size)) * 4] / 255;
+    for (let j = 0; j < size; j++) for (let i = 0; i < size; i++) {
+      const dx = (hgt(i + 1, j) - hgt(i - 1, j)) * strength, dy = (hgt(i, j + 1) - hgt(i, j - 1)) * strength;
+      const l = Math.hypot(dx, dy, 1), k = (j * size + i) * 4;
+      out.data[k] = (-dx / l * 0.5 + 0.5) * 255; out.data[k + 1] = (dy / l * 0.5 + 0.5) * 255; out.data[k + 2] = (1 / l * 0.5 + 0.5) * 255; out.data[k + 3] = 255;
+    }
+    x.putImageData(out, 0, 0);
+    const t = new THREE.CanvasTexture(c);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(repeatX, repeatY);
+    return t;
+  }
+  const floorMat = new THREE.MeshStandardMaterial({ color: 0x3d3844, map: concreteTex, roughness: 0.4, roughnessMap: concreteTex, metalness: 0.35,
+    normalMap: heightToNormal(concreteTex.image, 512, 2.5, 10 / 4.8, 16.4 / 4.8), normalScale: new THREE.Vector2(0.35, 0.35) });
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0x6d6574, map: stoneTex, roughness: 0.85, metalness: 0.02,
+    normalMap: heightToNormal(stoneTex.image, 512, 4, 4, 1), normalScale: new THREE.Vector2(0.9, 0.9) });
+  // knit texture for the stocked clothes
+  const weaveCanvas = document.createElement('canvas'); weaveCanvas.width = weaveCanvas.height = 64;
+  {
+    const w = weaveCanvas.getContext('2d');
+    w.fillStyle = '#808080'; w.fillRect(0, 0, 64, 64);
+    for (let yy = 0; yy < 64; yy += 4) for (let xx = 0; xx < 64; xx += 4) {
+      w.fillStyle = `rgb(${150 + (xx * 7 + yy * 13) % 40},0,0)`; w.fillRect(xx + 1, yy, 2, 3);
+    }
+  }
+  const weaveNormal = (r) => { const t = heightToNormal(weaveCanvas, 64, 3, r, r); return t; };
+  // softly rounded edges on furniture - hard 90deg box edges were the most "game" tell
+  function boxGeo(w, h, d){
+    const m = Math.min(w, h, d);
+    return m >= 0.06 ? new RoundedBoxGeometry(w, h, d, 2, Math.min(0.022, m * 0.2)) : new THREE.BoxGeometry(w, h, d);
+  }
   const ceilingMat = new THREE.MeshStandardMaterial({ color: 0x120d1a, roughness: 0.9, metalness: 0.1 });
 
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(ROOM.width, ROOM.entranceZ - ROOM.wallZ), floorMat);
@@ -1383,7 +1458,7 @@ window.startStore3D = () => storeStarting || (storeStarting = (async () => {
   const darkMat = new THREE.MeshStandardMaterial({ color: 0x0c0b0e, roughness: 0.4, metalness: 0.5 });
   const paleMat = new THREE.MeshStandardMaterial({ color: 0xe9e6ef, roughness: 0.45, metalness: 0.1 });
   function counterBox(w, h, d, x, y, z, mat){
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+    const m = new THREE.Mesh(boxGeo(w, h, d), mat);
     m.position.set(x, y, z);
     counter.add(m);
     return m;
@@ -1463,7 +1538,7 @@ window.startStore3D = () => storeStarting || (storeStarting = (async () => {
   const FZ = ROOM.entranceZ;
   const HALF = ROOM.maxX + 0.1;
   function frontBox(w, h, x, y, mat){
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.15), mat);
+    const m = new THREE.Mesh(boxGeo(w, h, 0.15), mat);
     m.position.set(x, y, FZ);
     scene.add(m);
   }
@@ -1504,6 +1579,7 @@ window.startStore3D = () => storeStarting || (storeStarting = (async () => {
     ctx.fillText(text, o.w / 2, o.h / 2);
     const tex = new THREE.CanvasTexture(c);
     tex.colorSpace = THREE.SRGBColorSpace;
+    tex.userData.neon = true;
     return tex;
   }
   const neon = new THREE.Mesh(
@@ -1633,7 +1709,7 @@ window.startStore3D = () => storeStarting || (storeStarting = (async () => {
       tex.colorSpace = THREE.SRGBColorSpace;
       const crestPlane = new THREE.Mesh(
         new THREE.PlaneGeometry(3.6, 3.6),
-        new THREE.MeshBasicMaterial({ map: tex, transparent: true })
+        new THREE.MeshBasicMaterial({ map: tex, transparent: true, color: 0xb8b8b8 })
       );
       crestPlane.position.set(0, 2.5, ROOM.wallZ + 0.05);
       scene.add(crestPlane);
@@ -1903,7 +1979,7 @@ window.startStore3D = () => storeStarting || (storeStarting = (async () => {
   const platMat = new THREE.MeshStandardMaterial({ color: 0xe4e6ee, roughness: 0.2, metalness: 1 });
   const vinylMat = new THREE.MeshStandardMaterial({ color: 0x08070a, roughness: 0.25, metalness: 0.3 });
   const djBox = (w, h, d, x, y, z, mat, parent) => {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+    const m = new THREE.Mesh(boxGeo(w, h, d), mat);
     m.position.set(x, y, z);
     (parent || dj).add(m);
     return m;
@@ -2049,7 +2125,7 @@ window.startStore3D = () => storeStarting || (storeStarting = (async () => {
     const beamGeo = new THREE.ConeGeometry(0.55, 4.5, 24, 1, true);
     beamGeo.translate(0, -2.25, 0);
     const beam = new THREE.Mesh(beamGeo, new THREE.MeshBasicMaterial({
-      color: s < 0 ? 0xff4fd8 : 0x3fd0ff, transparent: true, opacity: 0.07,
+      color: s < 0 ? 0xd98ad0 : 0x8ccde0, transparent: true, opacity: 0.035,
       blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false,
     }));
     head.add(beam);
@@ -2317,8 +2393,8 @@ window.startStore3D = () => storeStarting || (storeStarting = (async () => {
       }
     }
   }
-  bakeInstances(foldList, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85 }));
-  bakeWith(hangList, garmentGeo, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85 }));
+  bakeInstances(foldList, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9, normalMap: weaveNormal(6), normalScale: new THREE.Vector2(0.5, 0.5) }));
+  bakeWith(hangList, garmentGeo, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9, normalMap: weaveNormal(14), normalScale: new THREE.Vector2(0.45, 0.45) }));
   bakeWith(printList, printGeo, new THREE.MeshStandardMaterial({ color: 0xffffff, map: printTex, transparent: true, alphaTest: 0.35, roughness: 0.7, depthWrite: false }));
   [-0.6, 0, 0.6].forEach((dz) => colliders.push({ x: 0, z: TABLE_Z + dz, radius: 0.72 }));
 
@@ -2396,7 +2472,7 @@ window.startStore3D = () => storeStarting || (storeStarting = (async () => {
   // purple halo behind the crest on the back wall
   const halo = new THREE.Mesh(
     new THREE.PlaneGeometry(6, 4.6),
-    new THREE.MeshBasicMaterial({ color: 0xb06cff, map: poolTex, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false })
+    new THREE.MeshBasicMaterial({ color: 0xb06cff, map: poolTex, transparent: true, opacity: 0.38, blending: THREE.AdditiveBlending, depthWrite: false })
   );
   halo.position.set(0, 2.5, ROOM.wallZ + 0.03);
   scene.add(halo);
@@ -2439,7 +2515,7 @@ window.startStore3D = () => storeStarting || (storeStarting = (async () => {
     }
 
     const spotColor = side > 0 ? 0xffe8ff : 0xe8f4ff;
-    const spot = new THREE.SpotLight(spotColor, 32, 7, Math.PI / 7, 0.4, 1.4);
+    const spot = new THREE.SpotLight(spotColor, 22, 7, Math.PI / 7, 0.5, 1.4);
     spot.position.set(x, 3.4, z);
     spot.target.position.set(x, 0.9, z);
     scene.add(spot, spot.target);
@@ -2568,7 +2644,7 @@ window.startStore3D = () => storeStarting || (storeStarting = (async () => {
   // mannequins wearing full looks: a pair on a lit island mid-store, a pair in the front windows.
   // Garments are fitted onto a simple display form; flat-lay meshes get a little extra depth
   // so they wrap the form instead of the form poking through.
-  const formMat = new THREE.MeshStandardMaterial({ color: 0xe8e4ee, roughness: 0.35, metalness: 0.05 });
+  const formMat = new THREE.MeshStandardMaterial({ color: 0xbcb7c2, roughness: 0.66, metalness: 0.0 });   // matte display form, not glossy plastic
   function fitGarment(id, fit){
     const g = garmentRoots.find(x => x.id === id);
     if (!g || !g.raw) return null;
@@ -2647,12 +2723,12 @@ window.startStore3D = () => storeStarting || (storeStarting = (async () => {
   }
   // center island
   const ISLAND_Z = -6.85;
-  const island = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.16, 1.0), counterMat);
+  const island = new THREE.Mesh(boxGeo(2.2, 0.16, 1.0), counterMat);
   island.position.set(0, 0.08, ISLAND_Z);
   const islandGlow = new THREE.Mesh(new THREE.BoxGeometry(2.24, 0.025, 1.04), new THREE.MeshBasicMaterial({ color: 0xb88cf2 }));
   islandGlow.position.set(0, 0.02, ISLAND_Z);
   scene.add(island, islandGlow);
-  const islandSpot = new THREE.SpotLight(0xfff0ff, 30, 7, Math.PI / 6, 0.5, 1.4);
+  const islandSpot = new THREE.SpotLight(0xfff0e6, 15, 7, Math.PI / 6, 0.6, 1.4);
   islandSpot.position.set(0, 3.7, ISLAND_Z + 1.2);
   islandSpot.target.position.set(0, 1.0, ISLAND_Z);
   scene.add(islandSpot, islandSpot.target);
@@ -2696,14 +2772,72 @@ window.startStore3D = () => storeStarting || (storeStarting = (async () => {
       const pmrem = new THREE.PMREMGenerator(renderer);
       const envTex = pmrem.fromScene(scene, 0.04).texture;
       floorMat.envMap = envTex;
-      floorMat.envMapIntensity = 0.35;
+      floorMat.envMapIntensity = 0.45;
       floorMat.needsUpdate = true;
+      // metals, glass and lacquer reflect the store itself instead of reading as flat grey
+      [[chromeMat, 1.1], [goldMat, 1.0], [platMat, 1.0], [frameMat, 0.6], [trimMat, 0.6], [glassMat, 0.9], [smokedMat, 0.9], [counterMat, 0.45], [darkMat, 0.35]]
+        .forEach(([m, k]) => { m.envMap = envTex; m.envMapIntensity = k; m.needsUpdate = true; });
       pmrem.dispose();
     } catch (e) { /* non-essential polish - skip silently if unsupported */ }
   }
 
+  // grounding: soft contact shadows under every fixture and occlusion where walls meet the
+  // floor - objects without them look pasted onto the floor
+  {
+    const blob = document.createElement('canvas'); blob.width = blob.height = 128;
+    const bx = blob.getContext('2d');
+    const g = bx.createRadialGradient(64, 64, 6, 64, 64, 64);
+    g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.55, 'rgba(255,255,255,0.55)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+    bx.fillStyle = g; bx.fillRect(0, 0, 128, 128);
+    const blobTex = new THREE.CanvasTexture(blob);
+    const shade = new THREE.MeshBasicMaterial({ color: 0x000000, alphaMap: blobTex, transparent: true, opacity: 0.62, depthWrite: false, fog: false });
+    const spots = [];
+    const add = (x, z, w, d, ry) => spots.push([x, z, w, d, ry || 0]);
+    [-0.7, -4.8, -8.9].forEach((pz) => { add(-2.7, pz, 1.7, 1.7); add(2.7, pz, 1.7, 1.7); });
+    add(0, -6.85, 3.0, 1.8); add(0, TABLE_Z, 1.6, 2.5); add(ROOM.maxX - 0.7, COUNTER_Z, 1.2, 2.7);
+    add(0, DJ_Z, 3.0, 1.4); add(-1.42, DJ_Z, 0.9, 0.9); add(1.42, DJ_Z, 0.9, 0.9);
+    add(-3.4, 1.6, 1.3, 1.3); add(-3.3, -10.2, 1.3, 1.3); add(3.3, -10.2, 1.3, 1.3);
+    add(VAULT.x, VAULT.z, 1.1, 1.1); add(-3.5, 2.85, 0.9, 0.9); add(3.5, 2.85, 0.9, 0.9);
+    add(-1.1, -10.45, 1.0, 0.8); add(1.2, -10.45, 0.7, 0.7);
+    const blobs = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), shade, spots.length);
+    const dm = new THREE.Object3D();
+    spots.forEach(([x, z, w, d, ry], i) => { dm.position.set(x, 0.003, z); dm.rotation.set(0, ry, 0); dm.scale.set(w, 1, d); dm.updateMatrix(); blobs.setMatrixAt(i, dm.matrix); });
+    blobs.renderOrder = -1;
+    scene.add(blobs);
+
+    const edge = document.createElement('canvas'); edge.width = 4; edge.height = 64;
+    const ex = edge.getContext('2d');
+    const eg = ex.createLinearGradient(0, 0, 0, 64);
+    eg.addColorStop(0, 'rgba(255,255,255,1)'); eg.addColorStop(1, 'rgba(255,255,255,0)');
+    ex.fillStyle = eg; ex.fillRect(0, 0, 4, 64);
+    const edgeMat = new THREE.MeshBasicMaterial({ color: 0x000000, alphaMap: new THREE.CanvasTexture(edge), transparent: true, opacity: 0.55, depthWrite: false, fog: false });
+    const run = ROOM.entranceZ - ROOM.wallZ;
+    [[ROOM.minX - 0.1, 1], [ROOM.maxX + 0.1, -1]].forEach(([wx, s]) => {   // along the side walls
+      const strip = new THREE.Mesh(new THREE.PlaneGeometry(0.9, run), edgeMat);
+      strip.rotation.set(-Math.PI / 2, 0, s > 0 ? Math.PI / 2 : -Math.PI / 2);
+      strip.position.set(wx + s * 0.45, 0.002, (ROOM.entranceZ + ROOM.wallZ) / 2);
+      scene.add(strip);
+    });
+    const back = new THREE.Mesh(new THREE.PlaneGeometry(ROOM.width, 0.9), edgeMat);
+    back.rotation.x = -Math.PI / 2;
+    back.position.set(0, 0.002, ROOM.wallZ + 0.45);
+    scene.add(back);
+  }
+
   // Compile every shader before the first visible frame - in parallel off the main thread
   // where the browser supports it - then fade the store in over the poster.
+  // only actual light sources bloom: neon signs, LED strips, lenses and screens are pushed
+  // above the bloom threshold; lit surfaces (mannequins, walls) stay below it
+  {
+    const boosted = new Set();
+    scene.traverse((o) => {
+      const m = o.material;
+      if (!o.isMesh || !m || !m.isMeshBasicMaterial || boosted.has(m)) return;
+      const glowing = (m.map && m.map.userData.neon) || (!m.map && !m.alphaMap && !m.transparent && m.color.getHSL({}).l > 0.25);
+      if (glowing) { m.color.multiplyScalar(m.map ? 1.9 : 2.2); boosted.add(m); }
+    });
+  }
+
   let sceneReady = false;
   const compiled = renderer.compileAsync ? renderer.compileAsync(scene, camera).catch(() => {}) : Promise.resolve();
   compiled.then(() => {
@@ -2739,7 +2873,7 @@ window.startStore3D = () => storeStarting || (storeStarting = (async () => {
     heroEl.classList.add('walking');
     canvas.classList.add('walking');
     crosshair.classList.add('show');
-    hint.textContent = isTouch ? 'Left side to walk · right side to look · Jump to hop · tap View to select' : 'WASD to walk · Space to jump · click or E to select · Esc to leave';
+    hint.textContent = isTouch ? 'Left side to walk · right side to look · Jump to hop · tap View to select' : 'WASD to walk · Shift to run · Space to jump · click or E to select · Esc to leave';
     heroEl.classList.toggle('touch', isTouch);
     hint.classList.add('show');
     clearTimeout(hintTimer);
@@ -2758,6 +2892,7 @@ window.startStore3D = () => storeStarting || (storeStarting = (async () => {
     hovered = null;
     for (const k in keys) keys[k] = false;
     jumpY = 0; jumpV = 0;
+    walkVel.set(0, 0, 0);
     touchState.moveId = touchState.lookId = null;
     touchState.moveVec = { x: 0, y: 0 };
   }
@@ -2894,6 +3029,8 @@ window.startStore3D = () => storeStarting || (storeStarting = (async () => {
   function jump(){ if (walking && jumpY === 0 && jumpV === 0) jumpV = JUMP_SPEED; }
 
   const moveVec3 = new THREE.Vector3();
+  const walkVel = new THREE.Vector3();
+  let bobPhase = 0;
   let lastT = null;
   function animate(now){
     requestAnimationFrame(animate);
@@ -2927,12 +3064,17 @@ window.startStore3D = () => storeStarting || (storeStarting = (async () => {
       }
 
       const len = Math.hypot(mx, mz);
-      if (len > 0.001) {
-        mx /= (len > 1 ? len : 1); mz /= (len > 1 ? len : 1);
-        const speed = 3.2;
-        const cosY = Math.cos(yaw), sinY = Math.sin(yaw);
-        moveVec3.set(mx * cosY - mz * sinY, 0, mx * -sinY - mz * cosY).multiplyScalar(speed * dt);
-        camera.position.add(moveVec3);
+      if (len > 1) { mx /= len; mz /= len; }
+      // walking pace that eases in and out of each step (Shift to run), not an instant glide
+      const speed = (keys['ShiftLeft'] || keys['ShiftRight']) ? 3.8 : (isTouch ? 2.6 : 2.2);
+      const cosY = Math.cos(yaw), sinY = Math.sin(yaw);
+      moveVec3.set(mx * cosY - mz * sinY, 0, mx * -sinY - mz * cosY).multiplyScalar(speed);
+      walkVel.lerp(moveVec3, 1 - Math.exp(-dt * (len > 0.001 ? 7 : 10)));
+      if (walkVel.lengthSq() < 0.0004 && len <= 0.001) walkVel.set(0, 0, 0);
+      const pace = walkVel.length();
+      bobPhase += dt * pace * 5.4;
+      if (pace > 0) {
+        camera.position.addScaledVector(walkVel, dt);
         camera.position.x = Math.max(ROOM.minX, Math.min(ROOM.maxX, camera.position.x));
         camera.position.z = Math.max(ROOM.minZ, Math.min(ROOM.maxZ, camera.position.z));
         // push back out of any pedestal/kiosk so you can never stand inside a garment
@@ -2953,7 +3095,8 @@ window.startStore3D = () => storeStarting || (storeStarting = (async () => {
         jumpY += jumpV * h;
         if (jumpY <= 0) { jumpY = 0; jumpV = 0; }
       }
-      camera.position.y = EYE_Y + jumpY;
+      const bob = reduceMotion || jumpY > 0 ? 0 : Math.sin(bobPhase) * 0.026 * Math.min(1, pace / 2.2);
+      camera.position.y = EYE_Y + jumpY + bob;
 
       const hit = walking ? pickInteractable() : null;
       if (hit !== hovered) {
@@ -3031,7 +3174,7 @@ window.startStore3D = () => storeStarting || (storeStarting = (async () => {
       c.pivot.lookAt(cctvTarget);
       c.led.visible = (t + c.phase) % 1.6 < 0.9;
     });
-    renderer.render(scene, camera);
+    if (composer) { finishPass.uniforms.uTime.value = (now % 10000) / 1000; composer.render(); } else renderer.render(scene, camera);
   }
   requestAnimationFrame(animate);
   return true;
