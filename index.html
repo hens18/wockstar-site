@@ -8,14 +8,20 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..900&display=swap" rel="stylesheet">
-<link rel="modulepreload" href="assets/vendor/three/build/three.module.min.js">
-<link rel="modulepreload" href="assets/vendor/three/loaders/GLTFLoader.js">
 <script type="importmap">
 {"imports":{
   "three":"./assets/vendor/three/build/three.module.min.js"
 }}
 </script>
-<script>document.documentElement.classList.add('js')</script>
+<script>
+(function(){
+  var d = document.documentElement, choice = null;
+  d.classList.add('js');
+  try { choice = sessionStorage.getItem('wockstar-entry'); } catch (e) {}
+  if (!window.WebGLRenderingContext) choice = 'site';
+  d.classList.add(choice === '3d' ? 'mode-3d' : choice === 'site' ? 'mode-site' : 'show-entry');
+})();
+</script>
 <style>
 :root{
   --void:#000000;
@@ -78,6 +84,22 @@ button.btn{font-family:inherit;cursor:pointer}
 .btn-ghost:hover{background:rgba(184,140,242,.15)}
 .btn-pulse{animation:btn-pulse 1.8s ease-in-out infinite}
 @keyframes btn-pulse{0%,100%{box-shadow:0 0 0 0 rgba(184,140,242,.55)}50%{box-shadow:0 0 0 14px rgba(184,140,242,0)}}
+
+/* welcome screen: choose the 3D store or go straight to the site */
+.entry{position:fixed;inset:0;z-index:60;display:none;place-items:center;padding:24px;background:linear-gradient(to bottom,rgba(5,4,8,.55),rgba(5,4,8,.88)),url('assets/hero-poster.jpg') 50% 35%/cover no-repeat,#000;transition:opacity .45s cubic-bezier(.16,1,.3,1),visibility .45s}
+.show-entry .entry{display:grid}
+.show-entry body{overflow:hidden}
+.entry.leaving{display:grid;opacity:0;visibility:hidden;pointer-events:none}
+.entry-inner{width:100%;max-width:560px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:18px}
+.entry-crest{width:84px;height:84px;border-radius:50%;object-fit:cover}
+.entry-word{margin:0;font-weight:800;font-size:clamp(44px,11vw,96px);line-height:.9;letter-spacing:-.01em;text-transform:uppercase;font-variation-settings:"wdth" 125}
+.entry-lede{margin:0;color:var(--chrome);font-size:clamp(17px,2vw,19px);max-width:34ch}
+.entry-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:12px;margin-top:10px}
+.entry-note{margin:4px 0 0;color:var(--chrome);font-size:13px}
+.entry .btn .ico{margin-left:6px}
+/* site mode: the 3D store stays unloaded; the hero offers a way in */
+.hero-enter[hidden]{display:none}
+.hero:not(.store-on) .skip-shop,.hero:not(.store-on) #hero-3d{display:none}
 
 /* hero 3D scene label (hover tooltip for the currently raycast-hit garment) */
 .hero-label{position:absolute;left:50%;top:50%;z-index:3;transform:translate(-50%,-260%);white-space:nowrap;font-size:12px;font-weight:600;letter-spacing:.04em;color:var(--bone);background:rgba(10,9,12,.72);padding:6px 12px;border-radius:999px;opacity:0;transition:opacity .15s;pointer-events:none}
@@ -278,6 +300,19 @@ button.btn{font-family:inherit;cursor:pointer}
 </style>
 </head>
 <body>
+<div class="entry" id="entry" role="dialog" aria-modal="true" aria-labelledby="entry-title">
+  <div class="entry-inner">
+    <img class="entry-crest" src="assets/crest-nav.jpg" alt="" width="84" height="84">
+    <h2 class="entry-word" id="entry-title">Wockstar</h2>
+    <p class="entry-lede">Walk through the store in 3D, or go straight to the clothes.</p>
+    <div class="entry-actions">
+      <button class="btn btn-main" type="button" id="entry-3d">Enter the 3D store<svg class="ico" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+      <button class="btn btn-ghost" type="button" id="entry-site">Skip to the shop</button>
+    </div>
+    <p class="entry-note">The 3D store is about a 5&nbsp;MB download, so it opens fastest on Wi-Fi.</p>
+  </div>
+</div>
+
 <header class="nav">
   <a href="#top" aria-label="Wockstar home"><img src="assets/crest-nav.jpg" alt="" width="52" height="52"></a>
   <ul>
@@ -308,6 +343,7 @@ button.btn{font-family:inherit;cursor:pointer}
         <div class="actions">
           <a class="btn btn-main" href="#drop" id="hero-shop-btn">Shop drop 01</a>
           <a class="btn btn-ghost" href="#alerts" id="hero-alerts-btn">Get drop alerts</a>
+          <button class="btn btn-ghost hero-enter" type="button" id="hero-enter-3d" hidden>Enter the 3D store</button>
         </div>
       </div>
     </div>
@@ -529,6 +565,65 @@ class LoaderButton extends HTMLElement {
   }
 }
 customElements.define("loader-button", LoaderButton);
+
+// Welcome screen: 3D store or straight to the site. The choice holds for the visit.
+(function(){
+  const root = document.documentElement;
+  const entry = document.getElementById('entry');
+  const hero = document.querySelector('.hero');
+  const enterBtn = document.getElementById('hero-enter-3d');
+  const alertsBtn = document.getElementById('hero-alerts-btn');
+  const hint = document.getElementById('hero-hint');
+  const remember = (v) => { try { sessionStorage.setItem('wockstar-entry', v); } catch (e) {} };
+  function siteMode(){
+    root.classList.remove('mode-3d'); root.classList.add('mode-site');
+    hero.classList.remove('store-on');
+    enterBtn.hidden = false; alertsBtn.hidden = true;
+  }
+  function storeResult(ok){
+    if (ok === true) return;
+    hint.classList.remove('show');
+    siteMode();   // WebGL unavailable after all: fall back to the regular site
+  }
+  window.__storeResult = storeResult;
+  function storeMode(){
+    root.classList.remove('mode-site'); root.classList.add('mode-3d');
+    hero.classList.add('store-on');
+    enterBtn.hidden = true; alertsBtn.hidden = false;
+    hint.textContent = 'Loading the 3D store…';
+    hint.classList.add('show');
+    if (window.startStore3D) window.startStore3D().then(storeResult);
+    else window.__wantStore = true;   // the store module picks this up as soon as it runs
+  }
+  function closeEntry(){
+    if (!root.classList.contains('show-entry')) return;
+    entry.classList.add('leaving');
+    root.classList.remove('show-entry');
+    const done = () => { entry.hidden = true; entry.classList.remove('leaving'); };
+    entry.addEventListener('transitionend', done, { once: true });
+    setTimeout(done, 700);
+  }
+  // warm the 3D engine the moment a visitor leans toward the 3D button
+  let warmed = false;
+  function warm(){
+    if (warmed) return; warmed = true;
+    ['assets/vendor/three/build/three.module.min.js', 'assets/vendor/three/loaders/GLTFLoader.js'].forEach((href) => {
+      const l = document.createElement('link'); l.rel = 'modulepreload'; l.href = href; document.head.appendChild(l);
+    });
+  }
+  const entry3d = document.getElementById('entry-3d');
+  entry3d.addEventListener('pointerenter', warm);
+  entry3d.addEventListener('click', () => { remember('3d'); closeEntry(); storeMode(); });
+  document.getElementById('entry-site').addEventListener('click', () => { remember('site'); closeEntry(); siteMode(); });
+  enterBtn.addEventListener('pointerenter', warm);
+  enterBtn.addEventListener('click', () => { remember('3d'); storeMode(); hero.scrollIntoView({ behavior: 'smooth' }); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && root.classList.contains('show-entry')) { remember('site'); closeEntry(); siteMode(); }
+  });
+
+  if (root.classList.contains('show-entry')) { entry.hidden = false; entry3d.focus({ preventScroll: true }); }
+  else { entry.hidden = true; if (root.classList.contains('mode-3d')) storeMode(); else siteMode(); }
+})();
 
 // Edit products here. Set img to a photo path and buy to the checkout link.
 // video/poster: a short muted loop that plays on hover/tap, poster shown otherwise.
@@ -1045,10 +1140,12 @@ document.getElementById('alert-form').addEventListener('submit',e=>{
 </script>
 
 <script type="module">
-import * as THREE from 'three';
-import { GLTFLoader } from './assets/vendor/three/loaders/GLTFLoader.js';
-
-(async () => {
+// The 3D store loads only when a visitor asks for it (welcome screen or the hero button).
+// Visitors who skip never download three.js, the store models or compile a shader.
+let storeStarting = null;
+window.startStore3D = () => storeStarting || (storeStarting = (async () => {
+  const THREE = await import('three');
+  const { GLTFLoader } = await import('./assets/vendor/three/loaders/GLTFLoader.js');
   const canvas = document.getElementById('hero-3d');
   const heroMedia = document.getElementById('hero-media');
   const label = document.getElementById('hero-label');
@@ -1057,11 +1154,11 @@ import { GLTFLoader } from './assets/vendor/three/loaders/GLTFLoader.js';
   const joystick = document.getElementById('hero-joystick');
   const joystickKnob = document.getElementById('hero-joystick-knob');
   const interactBtn = document.getElementById('hero-interact');
-  if (!canvas || !window.PIECES || !window.openProductModal) return;
+  if (!canvas || !window.PIECES || !window.openProductModal) return false;
 
   let gl;
   try { gl = canvas.getContext('webgl2') || canvas.getContext('webgl'); } catch (e) { gl = null; }
-  if (!gl) return; // no WebGL: the CSS poster background on #hero-media stays visible, nothing else runs
+  if (!gl) return false; // no WebGL: the CSS poster background on #hero-media stays visible, nothing else runs
 
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const isTouch = matchMedia('(pointer: coarse)').matches;
@@ -2612,6 +2709,12 @@ import { GLTFLoader } from './assets/vendor/three/loaders/GLTFLoader.js';
   compiled.then(() => {
     sceneReady = true;
     canvas.classList.add('ready');
+    if (!walking) {
+      hint.textContent = isTouch ? 'Tap the store to walk in' : 'Click the store to walk in';
+      hint.classList.add('show');
+      clearTimeout(hintTimer);
+      hintTimer = setTimeout(() => hint.classList.remove('show'), 4500);
+    }
     setTimeout(bakeFloorReflection, 400);
   });
 
@@ -2931,7 +3034,9 @@ import { GLTFLoader } from './assets/vendor/three/loaders/GLTFLoader.js';
     renderer.render(scene, camera);
   }
   requestAnimationFrame(animate);
-})();
+  return true;
+})());
+if (window.__wantStore) window.startStore3D().then(window.__storeResult);
 </script>
 </body>
 </html>
